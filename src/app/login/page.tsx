@@ -56,9 +56,7 @@ export default function LoginPage() {
             </p>
           </div>
           <div className="flex justify-end overflow-hidden">
-            <div className="rounded-lg border border-primary/20 bg-card/30 backdrop-blur-xl px-3 py-2 overflow-auto">
-              <LoginHero />
-            </div>
+            <LoginHero />
           </div>
         </div>
 
