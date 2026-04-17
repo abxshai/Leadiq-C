@@ -7,32 +7,37 @@ import { Label } from "@/components/ui/label";
 import { LoginHero } from "@/components/login-hero";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 
+// Every teammate signs in as the same Supabase user. The "email" here
+// is just a lookup key — no emails are ever sent. Create this user once
+// in Supabase dashboard → Authentication → Users → Add User (auto-confirm).
+const SHARED_EMAIL = "team@lead-iq.local";
+
 export default function LoginPage() {
-  const [email, setEmail] = useState("");
-  const [status, setStatus] = useState<"idle" | "sending" | "sent" | "error">(
-    "idle"
-  );
-  const [errMsg, setErrMsg] = useState<string | null>(null);
+  const [password, setPassword] = useState("");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState<string | null>(null);
 
   async function onSubmit(e: React.FormEvent) {
     e.preventDefault();
-    setStatus("sending");
-    setErrMsg(null);
+    if (!password) return;
+    setBusy(true);
+    setErr(null);
+
     const supabase = createBrowserSupabase();
-    const next =
-      new URLSearchParams(window.location.search).get("next") ?? "/campaigns";
-    const { error } = await supabase.auth.signInWithOtp({
-      email,
-      options: {
-        emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
-      },
+    const { error } = await supabase.auth.signInWithPassword({
+      email: SHARED_EMAIL,
+      password,
     });
+
     if (error) {
-      setStatus("error");
-      setErrMsg(error.message);
+      setErr(error.message);
+      setBusy(false);
       return;
     }
-    setStatus("sent");
+
+    const next =
+      new URLSearchParams(window.location.search).get("next") ?? "/campaigns";
+    window.location.replace(next);
   }
 
   return (
@@ -57,45 +62,34 @@ export default function LoginPage() {
           </div>
         </div>
 
-        {/* Form card below */}
+        {/* Password-only sign-in */}
         <div className="max-w-md">
           <div className="rounded-xl border border-border bg-card/60 p-8 backdrop-blur-xl">
-            <h2 className="text-xl font-semibold">Sign in</h2>
+            <h2 className="text-xl font-semibold">Enter password</h2>
             <p className="mt-1 text-sm text-muted-foreground">
-              We&apos;ll email you a magic link — no passwords.
+              Shared access — ask a teammate for the password.
             </p>
 
-            {status === "sent" ? (
-              <div className="mt-6 rounded-md border border-primary/30 bg-primary/10 px-4 py-3 text-sm">
-                Check <span className="font-medium">{email}</span> for a
-                sign-in link.
+            <form onSubmit={onSubmit} className="mt-6 space-y-4">
+              <div className="space-y-1.5">
+                <Label htmlFor="password">Password</Label>
+                <Input
+                  id="password"
+                  type="password"
+                  required
+                  autoFocus
+                  value={password}
+                  onChange={(e) => setPassword(e.target.value)}
+                  autoComplete="current-password"
+                />
               </div>
-            ) : (
-              <form onSubmit={onSubmit} className="mt-6 space-y-4">
-                <div className="space-y-1.5">
-                  <Label htmlFor="email">Work email</Label>
-                  <Input
-                    id="email"
-                    type="email"
-                    required
-                    value={email}
-                    onChange={(e) => setEmail(e.target.value)}
-                    placeholder="you@deccan.ai"
-                    autoComplete="email"
-                  />
-                </div>
-                <Button
-                  type="submit"
-                  className="w-full"
-                  disabled={status === "sending"}
-                >
-                  {status === "sending" ? "Sending…" : "Send magic link"}
-                </Button>
-                {errMsg ? (
-                  <div className="text-sm text-destructive">{errMsg}</div>
-                ) : null}
-              </form>
-            )}
+              <Button type="submit" className="w-full" disabled={busy}>
+                {busy ? "Signing in…" : "Sign in"}
+              </Button>
+              {err ? (
+                <div className="text-sm text-destructive">{err}</div>
+              ) : null}
+            </form>
           </div>
         </div>
       </div>
