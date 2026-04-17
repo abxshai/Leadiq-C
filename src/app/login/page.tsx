@@ -42,9 +42,9 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-dvh items-center justify-center px-6 py-12">
-      <div className="w-full max-w-5xl">
+      <div className="w-full max-w-6xl">
         {/* Hero row: title left, ASCII right */}
-        <div className="grid gap-10 sm:grid-cols-2 items-center mb-10">
+        <div className="grid gap-10 sm:grid-cols-[1fr_1.3fr] items-center mb-10">
           <div className="space-y-3">
             <h1 className="text-6xl sm:text-7xl font-bold tracking-tight leading-none">
               lead-
@@ -55,8 +55,8 @@ export default function LoginPage() {
               gpt-oss-120b. Bring your own key.
             </p>
           </div>
-          <div className="flex justify-end">
-            <div className="rounded-lg border border-primary/20 bg-card/30 backdrop-blur-xl px-4 py-3">
+          <div className="flex justify-end overflow-hidden">
+            <div className="rounded-lg border border-primary/20 bg-card/30 backdrop-blur-xl px-3 py-2 overflow-auto">
               <LoginHero />
             </div>
           </div>

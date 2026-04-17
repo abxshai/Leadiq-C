@@ -1,104 +1,52 @@
-"use client";
+// Static ASCII art for the login hero. Rendered pixel-perfect; a subtle
+// CSS breathing animation (opacity + brightness) keeps it feeling alive
+// without disturbing the character grid. Animation keyframes live in
+// src/app/globals.css under .animate-hero-breathe.
+const PATTERN = `
 
-import { useEffect, useRef, useState } from "react";
+                                        .'..''"<[/xvvr|[<:''''''
+                                        ..'^<JMMWMWWWWMMWW*J}I^.
+                                        .':bWBMWMmr//vwMWWMWMMWx^''.
+                                        .{oWW#jI\`.'....',I_z*WWW#Z>'
+                                    ...;CMWMk~''...... .....^~cMMWMQ!...
+                                    .,t*WMMv"''.            ''.Ic#MW#j".
+                            .. ....;t*WMMZ>.....            ....'l0MMWk~....
+                            .. .';cWMWMb_'..                    '..}#WBM)'..
+                            ...\`C#BMMdi'..'.                    '''',kMM#<..
+                            ''>aMWWCi\`''                            .]WWWj..
+                            .,aMM*-''.''                            .1WMWt..
+                            .fMMW)..                            ....IaMW*;..
+                            .0MMW,..                            ..'laMWM}...
+                            .QMMM"..                        ... ..}MMWW-
+                            .YMWMI..                        ...."QMWWki.
+                            .cMWMi..                        ...{hMWMv,.'
+                            .tMMM[..                        'IQMMWb_....
+                            .]MWMt..                    ...\`1#MW#v^'.'..
+                            .;WMWC..                    .\`:ZMMMhi'..
+                            '.kWM*'.                    .}#WWMx\`.'..
+                            ..vWWW+.                ..'\`YMWMh>''
+                            ..~WWMz'                '.,ZMMWz,.\`.
+                            ..'dMW#;                ."mWMMj.
+                            .'.)WMMx                'QMWMt'.
+                                bB#BI..'        ..'.tMWMX'..
+                                +WWMw'..        .'.<MMWb^.'.
+                                'xWWWn'.        .'\`pMWM>....
+                                .\`QWWWr\`        ..rMWMr.
+                                .'\`0MWWY, .... ..+MWMp''
+                                ..'.zWWW*]^'....l*WM*!..
+                                ..'.'+#MMWoY_^^t#MWM+'..
+                                    .'")kBMWWMMWMWbi
+                                    ....\`~/Ymkkmz]^'
 
-// Base pattern. Whitespace is preserved as-is — only density glyphs
-// (░ ▒ ▓ █) shimmer. Each character's intensity drifts over time, so
-// the shape stays locked but the surface appears to breathe.
-const PATTERN = `                          ░░░░▒▓████▓░░░░░
-                          ░░▓███▓▓▓██████▒░░░
-                          ▒██▓░░░░░░░░░▒███▒░
-                       ░░███▒░░░       ░░▒███▒░
-                  ░░░░░███▓░░            ░░▒██▓░░░
-                  ░░░███▓░░░░            ░░░░██▓░░
-                  ░▒██▓░░░                  ░▓█▓░░
-                  ░▓█▓░░                 ░░░▒██▒░░
-                  ░██▒░░               ░░░░▒██▒░░░
-                  ░██▒░░               ░░░███░░
-                  ░▓█▓░░               ░▓██▓░░░
-                  ░▓█▓░░            ░░░███░░░
-                  ░▒██░░          ░░░▓██▓░░░░
-                  ░░██▒░          ░░███░░░
-                  ░░▓██░          ░███░
-                  ░░░██▒░░     ░░░▓██░░
-                     ▓██░░     ░░▒██░░░
-                     ░▓██░     ░▒██▒░
-                     ░░▓██▒░░░░░██▓░░
-                     ░░░▒███▓░▒███░░░
-                       ░░░░█████▒░`;
-
-// Intensity ramp — must be ordered low→high density.
-function quantize(v: number): string {
-  if (v < 0.28) return "░";
-  if (v < 0.55) return "▒";
-  if (v < 0.82) return "▓";
-  return "█";
-}
-
-function baseIntensity(ch: string): number | null {
-  if (ch === "░") return 0.25;
-  if (ch === "▒") return 0.5;
-  if (ch === "▓") return 0.75;
-  if (ch === "█") return 1.0;
-  return null; // whitespace etc. — leave alone
-}
-
-const GRID: (number | null)[][] = PATTERN.split("\n").map((row) =>
-  Array.from(row, baseIntensity)
-);
-const ORIGINAL: string[][] = PATTERN.split("\n").map((row) =>
-  Array.from(row)
-);
+                                                                                              `;
 
 export function LoginHero() {
-  const [frame, setFrame] = useState("");
-  const tRef = useRef(0);
-
-  useEffect(() => {
-    let raf = 0;
-    let last = 0;
-    const step = 1000 / 10; // 10 fps, same as before
-
-    const tick = (now: number) => {
-      if (now - last >= step) {
-        last = now;
-        tRef.current += 0.12;
-        setFrame(compose(tRef.current));
-      }
-      raf = requestAnimationFrame(tick);
-    };
-    raf = requestAnimationFrame(tick);
-    return () => cancelAnimationFrame(raf);
-  }, []);
-
   return (
     <pre
       aria-hidden
-      className="text-[11px] sm:text-[13px] leading-[1.05] text-primary/70 font-mono whitespace-pre select-none"
+      className="animate-hero-breathe text-[7px] sm:text-[8px] md:text-[9px] leading-[1] text-primary font-mono whitespace-pre select-none"
     >
-      {frame}
+      {PATTERN}
     </pre>
   );
-}
-
-function compose(t: number): string {
-  const rows: string[] = [];
-  for (let y = 0; y < GRID.length; y++) {
-    let row = "";
-    for (let x = 0; x < GRID[y].length; x++) {
-      const base = GRID[y][x];
-      if (base === null) {
-        row += ORIGINAL[y][x];
-        continue;
-      }
-      // Smooth 2D drift with slight phase variation — shape stays, density pulses.
-      const noise =
-        Math.sin(x * 0.22 + y * 0.18 + t) * 0.28 +
-        Math.sin(x * 0.08 - y * 0.11 + t * 0.7) * 0.12;
-      const v = Math.max(0.05, Math.min(1, base + noise));
-      row += quantize(v);
-    }
-    rows.push(row);
-  }
-  return rows.join("\n");
 }
