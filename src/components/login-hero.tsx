@@ -2,21 +2,54 @@
 
 import { useEffect, useRef, useState } from "react";
 
-// Width of each row. Even spacing reads best in a monospace grid.
-const COLS = 28;
-const ROWS = 10;
+// Base pattern. Whitespace is preserved as-is — only density glyphs
+// (░ ▒ ▓ █) shimmer. Each character's intensity drifts over time, so
+// the shape stays locked but the surface appears to breathe.
+const PATTERN = `                          ░░░░▒▓████▓░░░░░
+                          ░░▓███▓▓▓██████▒░░░
+                          ▒██▓░░░░░░░░░▒███▒░
+                       ░░███▒░░░       ░░▒███▒░
+                  ░░░░░███▓░░            ░░▒██▓░░░
+                  ░░░███▓░░░░            ░░░░██▓░░
+                  ░▒██▓░░░                  ░▓█▓░░
+                  ░▓█▓░░                 ░░░▒██▒░░
+                  ░██▒░░               ░░░░▒██▒░░░
+                  ░██▒░░               ░░░███░░
+                  ░▓█▓░░               ░▓██▓░░░
+                  ░▓█▓░░            ░░░███░░░
+                  ░▒██░░          ░░░▓██▓░░░░
+                  ░░██▒░          ░░███░░░
+                  ░░▓██░          ░███░
+                  ░░░██▒░░     ░░░▓██░░
+                     ▓██░░     ░░▒██░░░
+                     ░▓██░     ░▒██▒░
+                     ░░▓██▒░░░░░██▓░░
+                     ░░░▒███▓░▒███░░░
+                       ░░░░█████▒░`;
 
-// Gradient from low-density to high-density glyphs.
-const RAMP = " ·:-=+*#%▒▓█";
+// Intensity ramp — must be ordered low→high density.
+function quantize(v: number): string {
+  if (v < 0.28) return "░";
+  if (v < 0.55) return "▒";
+  if (v < 0.82) return "▓";
+  return "█";
+}
 
-/**
- * Flowing ASCII heatmap — each cell samples a 2D sine field that drifts
- * in time, producing a smooth wave that looks like "processing" or
- * "qualification pipeline activity".
- *
- * Pure CSS color via the text-primary class, so it picks up sky-blue.
- * Runs at 10 fps, cheap on battery.
- */
+function baseIntensity(ch: string): number | null {
+  if (ch === "░") return 0.25;
+  if (ch === "▒") return 0.5;
+  if (ch === "▓") return 0.75;
+  if (ch === "█") return 1.0;
+  return null; // whitespace etc. — leave alone
+}
+
+const GRID: (number | null)[][] = PATTERN.split("\n").map((row) =>
+  Array.from(row, baseIntensity)
+);
+const ORIGINAL: string[][] = PATTERN.split("\n").map((row) =>
+  Array.from(row)
+);
+
 export function LoginHero() {
   const [frame, setFrame] = useState("");
   const tRef = useRef(0);
@@ -24,12 +57,12 @@ export function LoginHero() {
   useEffect(() => {
     let raf = 0;
     let last = 0;
-    const step = 1000 / 10; // 10 fps
+    const step = 1000 / 10; // 10 fps, same as before
 
     const tick = (now: number) => {
       if (now - last >= step) {
         last = now;
-        tRef.current += 0.08;
+        tRef.current += 0.12;
         setFrame(compose(tRef.current));
       }
       raf = requestAnimationFrame(tick);
@@ -41,7 +74,7 @@ export function LoginHero() {
   return (
     <pre
       aria-hidden
-      className="text-[10px] leading-[1.2] text-primary/70 font-mono whitespace-pre select-none tracking-wider"
+      className="text-[11px] sm:text-[13px] leading-[1.05] text-primary/70 font-mono whitespace-pre select-none"
     >
       {frame}
     </pre>
@@ -49,22 +82,23 @@ export function LoginHero() {
 }
 
 function compose(t: number): string {
-  const out: string[] = [];
-  for (let y = 0; y < ROWS; y++) {
-    const row: string[] = [];
-    for (let x = 0; x < COLS; x++) {
-      // Two overlapping sine waves — phase-shifted per row.
-      const v =
-        Math.sin(x * 0.35 - t) * 0.5 +
-        Math.sin(x * 0.15 + y * 0.3 + t * 0.8) * 0.5;
-      // Map [-1, 1] → [0, RAMP.length-1]
-      const idx = Math.max(
-        0,
-        Math.min(RAMP.length - 1, Math.floor(((v + 1) / 2) * RAMP.length))
-      );
-      row.push(RAMP[idx]);
+  const rows: string[] = [];
+  for (let y = 0; y < GRID.length; y++) {
+    let row = "";
+    for (let x = 0; x < GRID[y].length; x++) {
+      const base = GRID[y][x];
+      if (base === null) {
+        row += ORIGINAL[y][x];
+        continue;
+      }
+      // Smooth 2D drift with slight phase variation — shape stays, density pulses.
+      const noise =
+        Math.sin(x * 0.22 + y * 0.18 + t) * 0.28 +
+        Math.sin(x * 0.08 - y * 0.11 + t * 0.7) * 0.12;
+      const v = Math.max(0.05, Math.min(1, base + noise));
+      row += quantize(v);
     }
-    out.push(row.join(""));
+    rows.push(row);
   }
-  return out.join("\n");
+  return rows.join("\n");
 }
