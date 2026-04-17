@@ -1,10 +1,10 @@
 "use client";
 
 import { useState } from "react";
-import { Sparkles } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { LoginHero } from "@/components/login-hero";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 
 export default function LoginPage() {
@@ -19,7 +19,8 @@ export default function LoginPage() {
     setStatus("sending");
     setErrMsg(null);
     const supabase = createBrowserSupabase();
-    const next = new URLSearchParams(window.location.search).get("next") ?? "/campaigns";
+    const next =
+      new URLSearchParams(window.location.search).get("next") ?? "/campaigns";
     const { error } = await supabase.auth.signInWithOtp({
       email,
       options: {
@@ -35,51 +36,68 @@ export default function LoginPage() {
   }
 
   return (
-    <div className="flex min-h-dvh items-center justify-center px-6">
-      <div className="w-full max-w-sm rounded-xl border border-border bg-card/60 p-8 backdrop-blur-xl">
-        <div className="mb-6 flex items-center gap-2">
-          <div className="flex h-8 w-8 items-center justify-center rounded-md bg-primary/15 ring-1 ring-primary/30">
-            <Sparkles className="h-4 w-4 text-primary" />
+    <div className="flex min-h-dvh items-center justify-center px-6 py-12">
+      <div className="w-full max-w-5xl">
+        {/* Hero row: title left, ASCII right */}
+        <div className="grid gap-10 sm:grid-cols-2 items-center mb-10">
+          <div className="space-y-3">
+            <h1 className="text-6xl sm:text-7xl font-bold tracking-tight leading-none">
+              lead-
+              <span className="text-primary">IQ</span>
+            </h1>
+            <p className="text-sm text-muted-foreground max-w-sm">
+              Qualify LinkedIn leads against your ICP with Groq&apos;s
+              gpt-oss-120b. Bring your own key.
+            </p>
           </div>
-          <div className="text-lg font-semibold tracking-tight">Qualifier</div>
+          <div className="flex justify-end">
+            <div className="rounded-lg border border-primary/20 bg-card/30 backdrop-blur-xl px-4 py-3">
+              <LoginHero />
+            </div>
+          </div>
         </div>
 
-        <h1 className="text-xl font-semibold">Sign in</h1>
-        <p className="mt-1 text-sm text-muted-foreground">
-          We&apos;ll email you a magic link — no passwords.
-        </p>
+        {/* Form card below */}
+        <div className="max-w-md">
+          <div className="rounded-xl border border-border bg-card/60 p-8 backdrop-blur-xl">
+            <h2 className="text-xl font-semibold">Sign in</h2>
+            <p className="mt-1 text-sm text-muted-foreground">
+              We&apos;ll email you a magic link — no passwords.
+            </p>
 
-        {status === "sent" ? (
-          <div className="mt-6 rounded-md border border-primary/30 bg-primary/10 px-4 py-3 text-sm">
-            Check <span className="font-medium">{email}</span> for a sign-in
-            link.
+            {status === "sent" ? (
+              <div className="mt-6 rounded-md border border-primary/30 bg-primary/10 px-4 py-3 text-sm">
+                Check <span className="font-medium">{email}</span> for a
+                sign-in link.
+              </div>
+            ) : (
+              <form onSubmit={onSubmit} className="mt-6 space-y-4">
+                <div className="space-y-1.5">
+                  <Label htmlFor="email">Work email</Label>
+                  <Input
+                    id="email"
+                    type="email"
+                    required
+                    value={email}
+                    onChange={(e) => setEmail(e.target.value)}
+                    placeholder="you@deccan.ai"
+                    autoComplete="email"
+                  />
+                </div>
+                <Button
+                  type="submit"
+                  className="w-full"
+                  disabled={status === "sending"}
+                >
+                  {status === "sending" ? "Sending…" : "Send magic link"}
+                </Button>
+                {errMsg ? (
+                  <div className="text-sm text-destructive">{errMsg}</div>
+                ) : null}
+              </form>
+            )}
           </div>
-        ) : (
-          <form onSubmit={onSubmit} className="mt-6 space-y-4">
-            <div className="space-y-1.5">
-              <Label htmlFor="email">Work email</Label>
-              <Input
-                id="email"
-                type="email"
-                required
-                value={email}
-                onChange={(e) => setEmail(e.target.value)}
-                placeholder="you@deccan.ai"
-                autoComplete="email"
-              />
-            </div>
-            <Button
-              type="submit"
-              className="w-full"
-              disabled={status === "sending"}
-            >
-              {status === "sending" ? "Sending…" : "Send magic link"}
-            </Button>
-            {errMsg ? (
-              <div className="text-sm text-destructive">{errMsg}</div>
-            ) : null}
-          </form>
-        )}
+        </div>
       </div>
     </div>
   );
