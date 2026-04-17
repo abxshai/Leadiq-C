@@ -110,8 +110,13 @@ body::before {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 70% 55% at 15% -10%, oklch(0.685 0.169 237 / 0.22), transparent 60%),
+    /* Top-left bloom, enlarged to cascade down behind the hero */
+    radial-gradient(ellipse 85% 75% at 8% -5%, oklch(0.685 0.169 237 / 0.28), transparent 65%),
+    /* Mid-left extension, carries the glow down to the login form */
+    radial-gradient(ellipse 55% 55% at -5% 55%, oklch(0.685 0.169 237 / 0.18), transparent 70%),
+    /* Soft bottom-right counterweight */
     radial-gradient(ellipse 55% 45% at 100% 110%, oklch(0.685 0.169 237 / 0.1), transparent 60%),
+    /* Cyan highlight near the hero art */
     radial-gradient(ellipse 40% 30% at 85% 20%, oklch(0.78 0.13 210 / 0.06), transparent 70%);
   pointer-events: none;
   z-index: 0;
