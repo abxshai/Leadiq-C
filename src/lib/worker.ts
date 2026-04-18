@@ -7,6 +7,7 @@ import { createRateGate } from "@/lib/rate-gate";
 import {
   AgentOutputSchema,
   cleanAgentPayload,
+  normalizeAgentOutput,
   type AgentOutput,
 } from "@/lib/agent-schema";
 
@@ -290,7 +291,8 @@ function tryParseAndValidate(
   }
 
   const cleaned = cleanAgentPayload(json);
-  const result = AgentOutputSchema.safeParse(cleaned);
+  const normalized = normalizeAgentOutput(cleaned);
+  const result = AgentOutputSchema.safeParse(normalized);
   if (!result.success) {
     return {
       ok: false,
