@@ -35,8 +35,14 @@ export default function LoginPage() {
       return;
     }
 
-    const next =
+    // Only allow same-origin paths — reject full URLs and
+    // protocol-relative targets like "//evil.com".
+    const rawNext =
       new URLSearchParams(window.location.search).get("next") ?? "/campaigns";
+    const next =
+      rawNext.startsWith("/") && !rawNext.startsWith("//")
+        ? rawNext
+        : "/campaigns";
     window.location.replace(next);
   }
 
