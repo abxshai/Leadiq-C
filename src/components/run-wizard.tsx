@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useMemo, useState, useTransition } from "react";
+import { useCallback, useEffect, useMemo, useState, useTransition } from "react";
 import { useDropzone } from "react-dropzone";
 import {
   Upload,
@@ -30,7 +30,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from "@/components/ui/select";
-import { parseFile, type ParsedLead, type ParseResult } from "@/lib/lead-parser";
+import { parseCsv, parseFile, type ParsedLead, type ParseResult } from "@/lib/lead-parser";
 import { createCampaign } from "@/app/(app)/campaigns/actions";
 import { cn } from "@/lib/utils";
 
@@ -41,9 +41,20 @@ type Template = {
   is_default: boolean;
 };
 
+// Key used by /scrape to hand off a fetched PB result. Same tab only.
+const PENDING_SCRAPE_KEY = "qualifier.pending-scrape-push";
+
+type PendingScrapePayload = {
+  csv: string;
+  sourceLabel: string;
+  containerId?: string;
+  agentName?: string | null;
+};
+
 export function RunWizard({ templates }: { templates: Template[] }) {
   const [step, setStep] = useState(1);
   const [file, setFile] = useState<File | null>(null);
+  const [scrapeSource, setScrapeSource] = useState<string | null>(null);
   const [result, setResult] = useState<ParseResult | null>(null);
   const [parseErr, setParseErr] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -62,10 +73,35 @@ export function RunWizard({ templates }: { templates: Template[] }) {
   const [delayMs, setDelayMs] = useState(1000);
   const [sheetId, setSheetId] = useState("");
 
+  // If /scrape → "Push to Campaign" stashed a payload, auto-populate step 2.
+  useEffect(() => {
+    if (typeof window === "undefined") return;
+    const raw = window.sessionStorage.getItem(PENDING_SCRAPE_KEY);
+    if (!raw) return;
+    window.sessionStorage.removeItem(PENDING_SCRAPE_KEY);
+    try {
+      const payload = JSON.parse(raw) as PendingScrapePayload;
+      const parsed = parseCsv(payload.csv);
+      if (parsed.leads.length === 0) {
+        setParseErr("Pushed scrape had no rows after parsing.");
+        return;
+      }
+      setResult(parsed);
+      setScrapeSource(payload.sourceLabel);
+      setName(payload.agentName?.trim() || payload.sourceLabel);
+      setStep(2);
+    } catch (err) {
+      setParseErr(
+        err instanceof Error ? err.message : "Failed to load pushed scrape."
+      );
+    }
+  }, []);
+
   const onDrop = useCallback(async (accepted: File[]) => {
     const f = accepted[0];
     if (!f) return;
     setFile(f);
+    setScrapeSource(null); // uploading a file overrides a previously-pushed scrape
     setResult(null);
     setParseErr(null);
     try {
@@ -99,7 +135,7 @@ export function RunWizard({ templates }: { templates: Template[] }) {
     startTransition(async () => {
       await createCampaign({
         name: name.trim(),
-        source_filename: file?.name ?? null,
+        source_filename: file?.name ?? scrapeSource ?? null,
         prompt_template_id: templateId === "custom" ? null : templateId,
         system_prompt_override:
           templateId === "custom" ? customPrompt.trim() : null,
@@ -160,6 +196,14 @@ export function RunWizard({ templates }: { templates: Template[] }) {
                 </>
               )}
             </div>
+
+            {scrapeSource && result ? (
+              <div className="rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm text-primary">
+                Using {result.leads.length} leads pushed from{" "}
+                <span className="font-mono">{scrapeSource}</span>. Drop a file
+                above to replace.
+              </div>
+            ) : null}
 
             {parseErr ? (
               <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
@@ -322,8 +366,8 @@ export function RunWizard({ templates }: { templates: Template[] }) {
           <CardContent className="space-y-4 text-sm">
             <Summary label="Name" value={name} />
             <Summary
-              label="Source file"
-              value={`${file?.name ?? "—"} · ${result?.leads.length ?? 0} leads`}
+              label="Source"
+              value={`${file?.name ?? scrapeSource ?? "—"} · ${result?.leads.length ?? 0} leads`}
             />
             <Summary
               label="Prompt"
