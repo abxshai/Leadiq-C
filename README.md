@@ -1,8 +1,9 @@
 # Qualifier
 
 A self-serve lead-qualification dashboard. Upload a LinkedIn profile
-list, qualify against a target ICP via Groq's `openai/gpt-oss-120b`
-(BYOK), and export the merged result as CSV or push to Google Sheets.
+list (or pull a Sales Nav run directly from Phantombuster), qualify
+against a target ICP via Groq's `openai/gpt-oss-120b` (BYOK), and
+export the merged result as CSV or (planned) push to Google Sheets.
 
 Built for Deccan AI — optimized for its manufacturing-robotics ICP but
 ships with a neutral B2B template you can point at any list.
@@ -14,7 +15,8 @@ ships with a neutral B2B template you can point at any list.
 Sales, BDR, and GTM teams sit on LinkedIn exports they can't easily
 triage. Qualifier turns that flow into a 3-click loop:
 
-1. **Upload** a CSV/JSON of scraped LinkedIn profiles.
+1. **Source** a lead list — drop a CSV/JSON, or pick a Phantombuster
+   phantom from the Scrape page and pull its latest run.
 2. **Pick an ICP prompt** (Robotics, General B2B, or an ad-hoc prompt).
 3. **Run** — each profile goes through the qualification agent, and the
    merged output (input columns + agent scoring) appears in a searchable
@@ -30,9 +32,14 @@ The things it specifically solves:
   Groq's `response_format: json_object`, validated by a Zod schema with
   a one-shot retry on schema failure. No more `\n` escape-sequence
   hand-cleaning.
-- **No shared API keys.** Groq keys are Bring-Your-Own-Key, session-only,
-  and never touch the database, logs, or env vars — users paste a key
-  before each work session and it's dropped when the run finishes.
+- **No shared API keys.** Groq keys *and* Phantombuster keys are
+  Bring-Your-Own-Key, session-only, and never touch the database, logs,
+  or env vars — users paste a key before each work session and it's
+  dropped when the call finishes.
+- **Phantombuster fetch.** Pick a phantom, fetch its last finished run,
+  trim to qualification-input columns, push the result straight into the
+  campaign wizard. Vendor handles cookies/identities/bans; Lead-IQ just
+  reads the S3 result.
 - **Rate-limit-aware.** A per-campaign inter-call delay (default 1 s)
   plus a global rate gate keeps you under Groq's 250k TPM ceiling
   regardless of concurrency.
@@ -51,9 +58,10 @@ The things it specifically solves:
 | Theme | Dark, pure black + sky-blue radial gradient accent | — |
 | Font | **Space Mono** via `next/font/google` | — |
 | Charts | **Recharts** via shadcn Chart | Declarative, themable via CSS vars |
-| Auth | **Supabase Auth** — magic link | Zero password surface, no third-party provider |
+| Auth | **Supabase Auth** — shared password (single user `team@lead-iq.local`) | 5-person team; multi-user OAuth would be overkill |
 | Database | **Supabase Postgres** with RLS | Managed, cheap, auth-integrated |
 | LLM | **Groq** `openai/gpt-oss-120b` via the OpenAI SDK (BYOK) | 250k TPM, OpenAI-compatible, open-weights |
+| Scrape source | **Phantombuster** Sales Nav Search Export (BYOK API key) | Vendor handles cookies, identities, ban risk — we read the S3 result |
 | Parsing | **papaparse** | CSV/JSON, streaming-friendly |
 | Validation | **Zod** | Strict runtime schema for agent output, drives retry logic |
 | Concurrency | **p-limit** + a custom min-interval gate | Concurrent calls bounded by both N-in-flight and 1-per-`delay_ms` |
@@ -74,11 +82,11 @@ The things it specifically solves:
 │  React UI        │◀──────▶│  proxy.ts (session guard) │
 └────────┬─────────┘        └───────────┬───────────────┘
          │                              │
-         │   signInWithOtp              │  createServerSupabase
+         │  signInWithPassword          │  createServerSupabase
          ▼                              ▼
   ┌─────────────────┐          ┌────────────────────┐
   │  Supabase Auth  │          │  Supabase Postgres │
-  │  (magic link)   │          │  + Row-Level Sec.  │
+  │ (shared user)   │          │  + Row-Level Sec.  │
   └─────────────────┘          └──────────┬─────────┘
                                           │
                                   campaigns, leads,
@@ -211,6 +219,7 @@ lead-qualifier/
 ├── src/
 │   ├── app/
 │   │   ├── (app)/                 ← authed routes (sidebar layout)
+│   │   │   ├── scrape/            ← Phantombuster fetch page
 │   │   │   ├── campaigns/
 │   │   │   │   ├── new/           ← 3-step run wizard
 │   │   │   │   ├── [id]/          ← campaign detail + live progress
@@ -219,18 +228,21 @@ lead-qualifier/
 │   │   │   ├── analytics/         ← KPIs + charts
 │   │   │   └── settings/
 │   │   ├── api/
-│   │   │   └── campaigns/[id]/
-│   │   │       ├── run/           ← POST: kicks off the worker
-│   │   │       └── export.csv/    ← GET: streams merged CSV
-│   │   ├── auth/callback/         ← Supabase OTP code exchange
+│   │   │   ├── campaigns/[id]/
+│   │   │   │   ├── run/           ← POST: kicks off the worker
+│   │   │   │   └── export.csv/    ← GET: streams merged CSV
+│   │   │   ├── pb-agents/         ← GET: list phantoms on PB account
+│   │   │   └── pb-fetch/          ← POST: fetch + trim a phantom run
 │   │   ├── auth/signout/
-│   │   ├── login/                 ← magic-link form
+│   │   ├── login/                 ← shared-password sign-in form
 │   │   └── layout.tsx             ← html shell, fonts, gradient
 │   ├── components/
 │   │   ├── app-sidebar.tsx
 │   │   ├── connect-groq-dialog.tsx
 │   │   ├── groq-connect-pill.tsx
-│   │   ├── run-wizard.tsx
+│   │   ├── connect-pb-dialog.tsx
+│   │   ├── pb-connect-pill.tsx
+│   │   ├── run-wizard.tsx         ← upload OR auto-load from /scrape
 │   │   ├── campaign-detail.tsx
 │   │   ├── analytics-charts.tsx
 │   │   ├── delete-campaign-button.tsx
@@ -242,6 +254,8 @@ lead-qualifier/
 │   │   │   └── service.ts         ← service-role, server-only worker
 │   │   ├── groq-config.ts         ← plain constants, any runtime
 │   │   ├── groq-store.ts          ← Zustand, sessionStorage (client)
+│   │   ├── pb-api-key-store.ts    ← Zustand, sessionStorage (PB BYOK)
+│   │   ├── pb-fetch.ts            ← PB API helpers + trim/timestamp filter
 │   │   ├── lead-parser.ts         ← CSV/JSON → ParsedLead[]
 │   │   ├── agent-schema.ts        ← Zod schema for LLM output
 │   │   ├── rate-gate.ts           ← min-interval gate, promise chain
@@ -253,8 +267,10 @@ lead-qualifier/
 │   └── migrations/
 │       └── 0001_add_delay_ms.sql
 ├── scripts/
-│   └── debug-leads.mjs            ← CLI dump of recent lead errors
+│   ├── debug-leads.mjs            ← CLI dump of recent lead errors
+│   └── phantombuster-scrape.mjs   ← CLI proof-of-chain for PB API
 ├── DEPLOY.md                      ← Railway deployment guide
+├── DOCS.md                        ← product + architecture overview
 └── README.md                      ← this file
 ```
 
@@ -300,11 +316,14 @@ that serverless runtimes will kill mid-run.
 - [x] **M1 — Skeleton** · scaffold, theme, Supabase schema, app shell
 - [x] **M2 — Run wizard** · BYOK Groq, upload/parse, worker, CSV export,
       delay control, delete action, analytics v1
-- [ ] **M3 — Analytics filters** · date range, per-template A/B view,
-      per-campaign drilldown, saved queries
-- [ ] **M4 — Google Sheets push + polish** · service-account auth, 500-
-      row batched append, templates CRUD UI with version history, cron
-      / scheduled runs
+- [x] **Phantombuster fetch ingestion** · agent dropdown, trim + timestamp
+      filter, Push to Campaign handoff into the existing wizard
+- [ ] **M3 — Prompt templates CRUD + domain analytics** · `/templates`
+      forms, `domain` enum on agent output, stacked-bar by domain
+- [ ] **M4 — Clay webhook integration** · `clay_webhook_url` per campaign,
+      batched push of qualified leads on completion
+
+See `lead-iq-roadmap.md` (local-only) for the full living roadmap.
 
 ---
 

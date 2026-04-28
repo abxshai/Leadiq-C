@@ -1,11 +1,12 @@
 # Lead-IQ — Product & Architecture Documentation
 
-*Last updated: 2026-04-18*
+*Last updated: 2026-04-23*
 
 Lead-IQ is an internal self-serve tool at Deccan AI that qualifies
 LinkedIn leads against a target Ideal Customer Profile (ICP) using a
 Groq-hosted LLM, and exports the merged result as CSV or (planned)
-pushes it to Google Sheets.
+pushes it to Google Sheets. Lead lists can come from a manual CSV/JSON
+upload or be pulled directly from a Phantombuster Sales Navigator run.
 
 This document is the single-source overview of what Lead-IQ is, why it
 exists, how it works, and what's next. It's intended for anyone —
@@ -17,7 +18,7 @@ reading the codebase.
 ## 1. Why this exists
 
 Sales / BDR / GTM teams sit on LinkedIn exports they can't easily
-triage. Our existing workflow for qualifying leads had three concrete
+triage. Our existing workflow for qualifying leads had four concrete
 pain points:
 
 1. **Non-technical teammates couldn't run it.** The qualification logic
@@ -30,24 +31,39 @@ pain points:
 3. **There was no shared dashboard.** No visibility into how many
    leads were qualified last month, across which verticals, at which
    seniority, and under which prompt.
+4. **Phantombuster → Lead-IQ was a manual export-then-import step.**
+   Teammates ran Sales Nav scrapes in PB's UI, downloaded the CSV, and
+   re-uploaded it into the qualification wizard. Two tools, one copy
+   across the gap.
 
-Lead-IQ collapses those three problems into a single browser
-workflow: upload → configure → run → export. No terminal, no hand
-editing, no n8n handoff.
+Lead-IQ collapses those four problems into a single browser workflow:
+scrape or upload → configure → run → export. No terminal, no hand
+editing, no n8n handoff, no CSV relay.
 
 ---
 
 ## 2. How it works (user's view)
 
-The product is three screens:
+The product is four primary screens plus analytics and placeholders:
 
-**(a) Campaigns — the home screen.** Shows every run you've done,
+**(a) Scrape — pull a Sales Nav run from Phantombuster.** Pick one of
+your PB phantoms from a dropdown (populated live from the PB API);
+optionally paste a specific container ID to grab an older run.
+Click **Fetch output** and Lead-IQ pulls the phantom's result CSV from
+S3, filters to just that run's rows, trims to the 9 qualification-input
+columns, and shows a result card. From there you can **Download trimmed
+CSV** or **Push to Campaign** — the latter jumps you straight into the
+campaign wizard with the leads pre-loaded. Teammates still drive the
+actual scrape in PB's UI (where cookie/identity management lives); Lead-IQ
+just reads the output.
+
+**(b) Campaigns — the home screen.** Shows every run you've done,
 with status (pending, running, completed, failed), total leads,
 qualified count, failed count, and the source file. Click a row to
 open its detail view; click the delete icon to remove a failed run
 cleanly.
 
-**(b) New campaign — a three-step wizard.**
+**(c) New campaign — a three-step wizard.**
 - **Step 1 — Upload:** drop a CSV or JSON. The parser auto-detects
   the 9 standard LinkedIn input columns (`defaultProfileUrl`,
   `fullName`, `firstName`, `lastName`, `companyName`, `title`,
@@ -63,25 +79,33 @@ cleanly.
 - **Step 3 — Review and launch:** the campaign is created but not yet
   running. Next screen, you actually start it.
 
-**(c) Campaign detail — watch it run.** Progress bar, KPI tiles
+**(d) Campaign detail — watch it run.** Progress bar, KPI tiles
 (processed / qualified / failed), a live-updating table of every lead
 with its status, qualification verdict, seniority score, priority
 level, and a direct link back to the LinkedIn profile. Export CSV
 whenever you want, or delete the campaign with a confirmation dialog.
 
-**(d) Analytics — the monthly recap.** KPI cards (leads processed,
+**(e) Analytics — the monthly recap.** KPI cards (leads processed,
 qualified, qualification rate, avg seniority, campaigns this month,
 failed), a stacked-area chart of qualified vs. not-qualified per day
 over 30 days, a horizontal bar chart of the top product areas among
 qualified leads, and a seniority distribution bar chart.
 
-**(e) Templates and Settings** — placeholders for the roadmap work
+**(f) Templates and Settings** — placeholders for the roadmap work
 (versioned prompt CRUD, Google Sheets setup).
 
 ---
 
 ## 3. Key features
 
+- **Phantombuster fetch integration.** Pick a phantom from a live dropdown,
+  fetch its latest finished run, get a qualification-ready CSV trimmed to
+  the 9 input columns the pipeline expects. Result URL is resolved via three
+  fallbacks (phantom log → `/containers/fetch-result-object` → agent S3
+  folder) so timing races with PB's result-object population don't strand
+  valid runs. Rows are timestamp-filtered to the container's own launch
+  window so older accumulated rows on the shared agent's S3 file don't leak
+  into the current pull. BYOK for the PB API key, session-scoped.
 - **Dynamic ICPs per campaign.** Versioned prompt templates, snapshotted
   on the campaign row at run time. You can tune a template next month
   without retroactively changing last month's analytics.
@@ -128,6 +152,7 @@ qualified leads, and a seniority distribution bar chart.
 | Auth | **Supabase Auth — shared password** (single shared user) | 5-person team, OAuth / per-user auth would be overkill |
 | Database | **Supabase Postgres** with row-level security | Managed, auth-integrated, cheap |
 | LLM | **Groq** `openai/gpt-oss-120b` via the OpenAI SDK (BYOK) | 250k tokens/min, OpenAI-compatible API, open-weights |
+| Scrape source | **Phantombuster** Sales Navigator Search Export (BYOK) | Vendor handles cookies/identities/bans; we just read the S3 result |
 | Parsing | **papaparse** | Streams CSV and handles edge cases cleanly |
 | Validation | **Zod** | Runtime schema, drives retry logic on schema failures |
 | Concurrency | **p-limit** + a custom min-interval rate gate | Bounds both N-in-flight and N-per-delay_ms |
@@ -177,7 +202,18 @@ qualified leads, and a seniority distribution bar chart.
 
 **Data flow per campaign:**
 ```
-LinkedIn CSV/JSON
+Source (either):
+  (a) user-uploaded CSV/JSON
+  (b) Phantombuster fetch
+      │
+      ▼  GET /agents/fetch-all     → user picks a phantom
+      ▼  /containers/fetch-all     → latest finished container
+      ▼  log-scan | result-object  → CSV URL on PB's S3
+      ▼  papaparse + timestamp filter + 9-col projection
+      │
+      ▼  (sessionStorage handoff: scrape → /campaigns/new)
+      ▼
+LinkedIn CSV/JSON (normalized)
       │
       ▼  papaparse + alias map → 9 input cols (pass-through)
 Supabase: INSERT campaign + INSERT leads (status='pending')
@@ -212,12 +248,14 @@ Groq openai/gpt-oss-120b (JSON mode)
   (`prompt_templates`, `prompt_template_versions`, `campaigns`,
   `leads`) gate reads/writes on the authenticated role. The anon key
   alone can't read or write data — auth is mandatory.
-- **Groq keys are the only real secret.** By design, Lead-IQ never
-  holds one. Any leak from the server side — compromise, log
-  exposure, SQL injection (blocked by RLS but hypothetically) — does
-  not give an attacker a Groq key, because there's none to leak. The
-  blast radius of a server compromise is confined to the data in
-  Supabase, which is internal lead lists.
+- **Groq keys and Phantombuster keys are BYOK.** By design, Lead-IQ
+  never holds either. Both live in the browser tab's sessionStorage,
+  forwarded as request headers (`X-Groq-Key`, `X-PB-Key`) only when the
+  user initiates an action that needs them, held in the server handler's
+  closure for the duration of that one call, and dropped. Any leak from
+  the server side does not give an attacker either key, because there's
+  none to leak. The blast radius of a server compromise is confined to
+  the data in Supabase (internal lead lists).
 - **Supabase anon key is public.** That key is designed to be shipped
   to browsers and is not a secret. The security comes from RLS.
 - **Supabase service-role key is secret.** Held only in
@@ -238,6 +276,8 @@ Groq openai/gpt-oss-120b (JSON mode)
 - Password-based shared auth
 - Agent output key-variant normalizer (so `"Function Qualification"`,
   `"functionQualification"`, and `"function_qualification"` all work)
+- Phantombuster fetch ingestion — live agent dropdown, trim + timestamp
+  filter, Push to Campaign handoff into the existing RunWizard
 
 **Not yet shipped (roadmap):**
 - **Google Sheets batched push** — the Sheet ID field exists on the

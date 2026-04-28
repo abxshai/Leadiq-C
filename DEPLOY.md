@@ -95,21 +95,25 @@ Open it. You should hit the login page.
 
 ---
 
-## 6. Configure Supabase redirects (CRITICAL)
+## 6. Sign in (shared-password auth)
 
-This step traps almost everyone. Magic links come back pointing to
-**localhost** unless you tell Supabase about your production URL.
+Auth runs as a single shared Supabase user (`team@lead-iq.local`) — no
+magic links, no email round-trip, no per-user accounts. The team
+shares one password.
 
-1. Supabase dashboard → **Authentication → URL Configuration**.
-2. **Site URL**: set to your Railway URL, e.g.
-   `https://qualifier-production-abcd.up.railway.app`.
-3. **Redirect URLs**: add both:
-   - `https://qualifier-production-abcd.up.railway.app/**`
-   - `http://localhost:3000/**` (so local dev still works)
-4. Save.
+If this is a fresh Supabase project:
 
-Test: on the deployed site, enter your email → click the magic link in
-your inbox. It should redirect to the Railway URL and sign you in.
+1. Supabase dashboard → **Authentication → Users → Add user → Create
+   new user**.
+2. Email: `team@lead-iq.local`. Password: pick something strong, share
+   it with the team via 1Password / your secrets manager. Make sure
+   "Auto-confirm user" is checked so no verification email is sent.
+3. (Optional) Supabase **Authentication → URL Configuration → Site URL**:
+   set to your Railway URL. Not strictly required for password auth,
+   but tidies up some admin-page links.
+
+Test: on the deployed site, enter `team@lead-iq.local` + the shared
+password → land on `/campaigns`.
 
 ---
 
@@ -120,7 +124,12 @@ Once signed in on production:
 - [ ] `/campaigns` loads (empty or shows your dev campaigns if the same
       Supabase project).
 - [ ] "Connect Groq" modal accepts a real Groq key.
+- [ ] "Connect Phantombuster" modal accepts a real PB API key.
+- [ ] `/scrape`: agents dropdown populates → Fetch output on a known
+      finished phantom returns row count + Download CSV works.
 - [ ] New campaign: upload a small test file (5-10 rows), run it.
+- [ ] Push to Campaign from `/scrape` → wizard lands on Configure step
+      with leads pre-loaded.
 - [ ] `/analytics` populates.
 - [ ] CSV export downloads.
 - [ ] Delete a campaign — row disappears and analytics decrement.
@@ -156,7 +165,8 @@ request that touches a new column 500s.
 | Symptom | Likely cause | Fix |
 |---|---|---|
 | 500 on every page | Supabase env vars missing or wrong | Check Variables tab, redeploy |
-| Magic link redirects to `localhost` | Site URL not set in Supabase | Step 6 |
+| Login fails with valid credentials | Shared user doesn't exist or password mismatch | Step 6: re-create the user with auto-confirm on |
+| `/scrape` agents dropdown stays empty | PB API key not connected, or invalid | Click the **Connect Phantombuster** pill, paste the key — it validates against `/orgs/fetch-resources` |
 | Run starts but leads never update | Worker crashed silently | Check Railway logs for `[worker]` lines |
 | `baseURL.endsWith is not a function` | `GROQ_BASE_URL` import got crossed with a `"use client"` module | Should be fixed on `main`; `import` from `@/lib/groq-config`, not `@/lib/groq-store` |
 | "relation does not exist" | Schema SQL not applied to the Supabase project this deploy points at | Re-run `schema.sql` + `rls.sql` in the SQL editor |
