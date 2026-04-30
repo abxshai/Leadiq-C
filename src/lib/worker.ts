@@ -96,10 +96,15 @@ async function execute({
   }
   const campaign = campaignData as CampaignRow;
 
-  // Paginate through pending leads. PostgREST defaults to 1000 rows per
-  // response, so the previous unbounded select silently capped at 1000 —
-  // a 1950-lead campaign would finish "completed" with ~950 leads still
-  // sitting in pending, untouched. Loop until we exhaust the pending set.
+  // Paginate through unfinished leads. PostgREST defaults to 1000 rows
+  // per response, so the previous unbounded select silently capped at
+  // 1000 — a 1950-lead campaign would finish "completed" with ~950 leads
+  // sitting in pending, untouched. Loop until exhausted.
+  //
+  // Status set: 'pending' (never touched) + 'failed' (retry — transient
+  // errors like cookie expiry / Groq 4xx / network blips often clear on
+  // a second attempt; the success-path update overwrites the prior error
+  // and llm_* fields in place).
   const PAGE_SIZE = 1000;
   const leadCols =
     "id, default_profile_url, full_name, first_name, last_name, company_name, title, summary, title_description, location";
@@ -109,7 +114,7 @@ async function execute({
       .from("leads")
       .select(leadCols)
       .eq("campaign_id", campaignId)
-      .eq("status", "pending")
+      .in("status", ["pending", "failed"])
       .order("id", { ascending: true })
       .range(start, start + PAGE_SIZE - 1);
     if (error) {
