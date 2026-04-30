@@ -112,9 +112,15 @@ export function CampaignDetail({
   const pct =
     campaign.total_leads > 0 ? (processed / campaign.total_leads) * 100 : 0;
 
+  const [refreshErr, setRefreshErr] = useState<string | null>(null);
+
   const refresh = useCallback(async () => {
     const supabase = createBrowserSupabase();
-    const [{ data: c }, { data: l }, { count: touched }] = await Promise.all([
+    const [
+      { data: c, error: cErr },
+      { data: l, error: lErr },
+      { count: touched, error: tErr },
+    ] = await Promise.all([
       supabase
         .from("campaigns")
         .select(
@@ -134,6 +140,13 @@ export function CampaignDetail({
         .eq("campaign_id", campaign.id)
         .in("status", ["processed", "failed", "skipped"]),
     ]);
+    const firstErr = cErr || lErr || tErr;
+    if (firstErr) {
+      console.error("[campaign-detail] refresh error:", firstErr);
+      setRefreshErr(firstErr.message);
+      return;
+    }
+    setRefreshErr(null);
     if (c) setCampaign(c as Campaign);
     if (l) setLeads(l as Lead[]);
     if (touched != null) setTouchedCount(touched);
@@ -263,6 +276,12 @@ export function CampaignDetail({
           <Progress value={pct} />
         </CardContent>
       </Card>
+
+      {refreshErr ? (
+        <div className="mb-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-xs text-destructive font-mono break-all">
+          Lead-list query failed: {refreshErr}
+        </div>
+      ) : null}
 
       {leads.length === 5000 && campaign.total_leads > 5000 ? (
         <div className="mb-2 rounded-md border border-border bg-card/30 px-3 py-2 text-xs text-muted-foreground">
