@@ -2,9 +2,10 @@ import Papa from "papaparse";
 import { NextResponse } from "next/server";
 import { createServerSupabase } from "@/lib/supabase/server";
 
-// Output column order matches `Lead data format.csv`:
-// cols 1-9  = pass-through scraper input
-// cols 10-17 = agent output
+// Output column order: pass-through scraper input first, then the
+// agent's qualification fields. Domain classification + subdomain land
+// between Seniority and Priority — matches the prompt's logical flow
+// (qualify → score → classify → prioritize).
 const COLUMNS = [
   "defaultProfileUrl",
   "fullName",
@@ -20,6 +21,10 @@ const COLUMNS = [
   "Function Reasoning",
   "ICP Qualification",
   "Seniority Scoring",
+  "Domain Classification",
+  "Subdomain",
+  "Subdomain Justification",
+  "Domain Reasoning",
   "Priority Level",
   "Product Area / Team",
   "Lead Summary",
@@ -40,6 +45,10 @@ type LeadExport = {
   function_reasoning: string | null;
   icp_qualification: string | null;
   seniority_scoring: number | null;
+  domain_classification: string | null;
+  subdomain: string | null;
+  subdomain_justification: string | null;
+  domain_reasoning: string | null;
   priority_level: string | null;
   product_area: string | null;
   lead_summary: string | null;
@@ -61,19 +70,28 @@ export async function GET(
     return NextResponse.json({ error: "Not found" }, { status: 404 });
   }
 
-  const { data: leads, error } = await supabase
-    .from("leads")
-    .select(
-      "default_profile_url, full_name, first_name, last_name, company_name, title, summary, title_description, location, agent_full_name, function_qualification, function_reasoning, icp_qualification, seniority_scoring, priority_level, product_area, lead_summary"
-    )
-    .eq("campaign_id", id)
-    .order("created_at", { ascending: true });
-
-  if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+  // Paginate around PostgREST's 1000-row default. A 2k+ row campaign
+  // would otherwise export only the first 1000 leads silently.
+  const PAGE_SIZE = 1000;
+  const leadCols =
+    "default_profile_url, full_name, first_name, last_name, company_name, title, summary, title_description, location, agent_full_name, function_qualification, function_reasoning, icp_qualification, seniority_scoring, domain_classification, subdomain, subdomain_justification, domain_reasoning, priority_level, product_area, lead_summary";
+  const allLeads: LeadExport[] = [];
+  for (let start = 0; ; start += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("leads")
+      .select(leadCols)
+      .eq("campaign_id", id)
+      .order("created_at", { ascending: true })
+      .range(start, start + PAGE_SIZE - 1);
+    if (error) {
+      return NextResponse.json({ error: error.message }, { status: 500 });
+    }
+    if (!data || data.length === 0) break;
+    allLeads.push(...(data as LeadExport[]));
+    if (data.length < PAGE_SIZE) break;
   }
 
-  const rows = ((leads ?? []) as LeadExport[]).map((l) => ({
+  const rows = allLeads.map((l) => ({
     defaultProfileUrl: l.default_profile_url,
     fullName: l.full_name,
     firstName: l.first_name,
@@ -88,6 +106,10 @@ export async function GET(
     "Function Reasoning": l.function_reasoning,
     "ICP Qualification": l.icp_qualification,
     "Seniority Scoring": l.seniority_scoring,
+    "Domain Classification": l.domain_classification,
+    "Subdomain": l.subdomain,
+    "Subdomain Justification": l.subdomain_justification,
+    "Domain Reasoning": l.domain_reasoning,
     "Priority Level": l.priority_level,
     "Product Area / Team": l.product_area,
     "Lead Summary": l.lead_summary,

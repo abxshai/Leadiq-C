@@ -1,19 +1,27 @@
 import { z } from "zod";
 
-// Agent output schema — mirrors the 8 agent-produced columns in
-// "Lead data format.csv" (cols 10-17). Nullable fields follow the
-// observed short-circuit behavior where function_qualification = "NO"
-// causes downstream ICP / priority fields to be dropped.
+// Agent output schema — mirrors the agent-produced columns on the leads
+// table. Nullable fields follow the short-circuit behavior where
+// function_qualification = "NO" causes downstream fields to be dropped.
+//
+// icp_qualification is intentionally a free string (not YES/NO) — the
+// production prompt treats ICP fit as a category like "Influencer",
+// "Decision Maker", "Champion", "Champion-User", etc. Old YES/NO values
+// remain valid strings.
 export const AgentOutputSchema = z.object({
   full_name: z.string().optional().nullable(),
   function_qualification: z.enum(["YES", "NO"]),
   function_reasoning: z.string().min(1),
-  icp_qualification: z.enum(["YES", "NO"]).optional().nullable(),
+  icp_qualification: z.string().optional().nullable(),
   seniority_scoring: z
     .union([z.number(), z.string().transform((s) => Number(s))])
     .pipe(z.number().int().min(1).max(5))
     .optional()
     .nullable(),
+  domain_classification: z.string().optional().nullable(),
+  subdomain: z.string().optional().nullable(),
+  subdomain_justification: z.string().optional().nullable(),
+  domain_reasoning: z.string().optional().nullable(),
   priority_level: z.string().optional().nullable(),
   product_area: z.string().optional().nullable(),
   lead_summary: z.string().min(1),
@@ -63,6 +71,13 @@ const CANONICAL_KEYS: Record<string, string> = {
   seniorityscoring: "seniority_scoring",
   seniorityscore: "seniority_scoring",
   seniority: "seniority_scoring",
+  domainclassification: "domain_classification",
+  domain: "domain_classification",
+  subdomain: "subdomain",
+  subdomainjustification: "subdomain_justification",
+  subdomainreasoning: "subdomain_justification",
+  domainreasoning: "domain_reasoning",
+  domainjustification: "domain_reasoning",
   prioritylevel: "priority_level",
   priority: "priority_level",
   productarea: "product_area",
@@ -123,14 +138,23 @@ export function normalizeAgentOutput(raw: unknown): Record<string, unknown> {
     }
   }
 
-  // 3. Coerce YES/NO fields.
+  // 3. Coerce function_qualification to strict YES/NO. icp_qualification
+  // is now a free string (categorical: "Influencer", "Decision Maker",
+  // "Champion", etc.) — only trim it.
   normalized.function_qualification = coerceYesNo(
     normalized.function_qualification
   );
-  normalized.icp_qualification = coerceYesNo(normalized.icp_qualification);
 
   // 4. Trim whitespace-only strings to null so Zod ".nullable()" paths work.
-  for (const key of ["priority_level", "product_area"] as const) {
+  for (const key of [
+    "priority_level",
+    "product_area",
+    "icp_qualification",
+    "domain_classification",
+    "subdomain",
+    "subdomain_justification",
+    "domain_reasoning",
+  ] as const) {
     if (typeof normalized[key] === "string") {
       const t = (normalized[key] as string).trim();
       normalized[key] = t.length > 0 ? t : null;

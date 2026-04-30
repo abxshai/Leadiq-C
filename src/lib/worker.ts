@@ -157,6 +157,12 @@ async function execute({
                 function_reasoning: result.output.function_reasoning,
                 icp_qualification: result.output.icp_qualification ?? null,
                 seniority_scoring: result.output.seniority_scoring ?? null,
+                domain_classification:
+                  result.output.domain_classification ?? null,
+                subdomain: result.output.subdomain ?? null,
+                subdomain_justification:
+                  result.output.subdomain_justification ?? null,
+                domain_reasoning: result.output.domain_reasoning ?? null,
                 priority_level: result.output.priority_level ?? null,
                 product_area: result.output.product_area ?? null,
                 lead_summary: result.output.lead_summary,
