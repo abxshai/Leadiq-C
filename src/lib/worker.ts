@@ -96,17 +96,29 @@ async function execute({
   }
   const campaign = campaignData as CampaignRow;
 
-  const { data: leads, error: lErr } = await supabase
-    .from("leads")
-    .select(
-      "id, default_profile_url, full_name, first_name, last_name, company_name, title, summary, title_description, location"
-    )
-    .eq("campaign_id", campaignId)
-    .eq("status", "pending");
-
-  if (lErr) {
-    await markFailed(supabase, campaignId, lErr.message);
-    return;
+  // Paginate through pending leads. PostgREST defaults to 1000 rows per
+  // response, so the previous unbounded select silently capped at 1000 —
+  // a 1950-lead campaign would finish "completed" with ~950 leads still
+  // sitting in pending, untouched. Loop until we exhaust the pending set.
+  const PAGE_SIZE = 1000;
+  const leadCols =
+    "id, default_profile_url, full_name, first_name, last_name, company_name, title, summary, title_description, location";
+  const leads: LeadRow[] = [];
+  for (let start = 0; ; start += PAGE_SIZE) {
+    const { data, error } = await supabase
+      .from("leads")
+      .select(leadCols)
+      .eq("campaign_id", campaignId)
+      .eq("status", "pending")
+      .order("id", { ascending: true })
+      .range(start, start + PAGE_SIZE - 1);
+    if (error) {
+      await markFailed(supabase, campaignId, error.message);
+      return;
+    }
+    if (!data || data.length === 0) break;
+    leads.push(...(data as LeadRow[]));
+    if (data.length < PAGE_SIZE) break;
   }
 
   const client = new OpenAI({ apiKey, baseURL: GROQ_BASE_URL });
@@ -114,10 +126,14 @@ async function execute({
   const gate = createRateGate(Math.max(0, campaign.delay_ms ?? 0));
   let qualified = 0;
   let failed = 0;
+  // Leads we touched but couldn't write back to (network blip mid-update,
+  // RLS edge case). These end up still in 'pending' even though the
+  // limit-callback resolved — tracked so the post-run gate flags it.
+  let silentFailures = 0;
 
   try {
     await Promise.all(
-      (leads ?? []).map((lead) =>
+      leads.map((lead) =>
         limit(async () => {
           await gate();
           const t0 = Date.now();
@@ -152,20 +168,64 @@ async function execute({
             const msg = err instanceof Error ? err.message : "Unknown error";
             // Never include the API key in error messages.
             const safe = redact(msg);
-            await supabase
-              .from("leads")
-              .update({
-                status: "failed",
-                error: safe,
-                llm_latency_ms: Date.now() - t0,
-                processed_at: new Date().toISOString(),
-              })
-              .eq("id", lead.id);
-            failed += 1;
+            try {
+              await supabase
+                .from("leads")
+                .update({
+                  status: "failed",
+                  error: safe,
+                  llm_latency_ms: Date.now() - t0,
+                  processed_at: new Date().toISOString(),
+                })
+                .eq("id", lead.id);
+              failed += 1;
+            } catch (writeErr) {
+              silentFailures += 1;
+              console.error(
+                `[worker] silent-failure update on lead ${lead.id}:`,
+                writeErr
+              );
+            }
           }
         })
       )
     );
+
+    // Post-run gate: count leads still pending or running. If non-zero, the
+    // run did NOT actually finish — flip status to 'failed' with a clear
+    // reason instead of misreporting 'completed'. Catches both the silent
+    // update failures above and any future "looked done but wasn't" bug.
+    const { count: leftover, error: leftoverErr } = await supabase
+      .from("leads")
+      .select("id", { count: "exact", head: true })
+      .eq("campaign_id", campaignId)
+      .in("status", ["pending", "running"]);
+
+    if (leftoverErr) {
+      await markFailed(
+        supabase,
+        campaignId,
+        `post-run leftover check failed: ${leftoverErr.message}`
+      );
+      return;
+    }
+
+    if ((leftover ?? 0) > 0) {
+      const reason = silentFailures
+        ? `partial run: ${leftover} leads still pending (${silentFailures} silent update failures)`
+        : `partial run: ${leftover} leads still pending`;
+      await supabase
+        .from("campaigns")
+        .update({
+          status: "failed",
+          completed_at: new Date().toISOString(),
+          qualified_count: qualified,
+          failed_count: failed,
+        })
+        .eq("id", campaignId);
+      console.error(`[worker] campaign ${campaignId} ${reason}`);
+      return;
+    }
 
     await supabase
       .from("campaigns")
