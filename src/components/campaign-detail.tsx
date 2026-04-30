@@ -69,26 +69,30 @@ const statusColor: Record<Campaign["status"], string> = {
 export function CampaignDetail({
   initialCampaign,
   initialLeads,
+  initialTouchedCount,
 }: {
   initialCampaign: Campaign;
   initialLeads: Lead[];
+  initialTouchedCount: number;
 }) {
   const [campaign, setCampaign] = useState(initialCampaign);
   const [leads, setLeads] = useState(initialLeads);
+  const [touchedCount, setTouchedCount] = useState(initialTouchedCount);
   const [starting, setStarting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
   const apiKey = useGroqStore((s) => s.apiKey);
 
-  const processed = leads.filter((l) =>
-    ["processed", "failed", "skipped"].includes(l.status)
-  ).length;
+  // KPI counts come from server-side count queries (touchedCount), not
+  // from the in-memory `leads` array — that array is capped at 5000 for
+  // table rendering and would undercount on very large campaigns.
+  const processed = touchedCount;
   const pct =
     campaign.total_leads > 0 ? (processed / campaign.total_leads) * 100 : 0;
 
   const refresh = useCallback(async () => {
     const supabase = createBrowserSupabase();
-    const [{ data: c }, { data: l }] = await Promise.all([
+    const [{ data: c }, { data: l }, { count: touched }] = await Promise.all([
       supabase
         .from("campaigns")
         .select(
@@ -102,10 +106,17 @@ export function CampaignDetail({
           "id, full_name, title, company_name, status, function_qualification, seniority_scoring, priority_level, product_area, error, default_profile_url"
         )
         .eq("campaign_id", campaign.id)
-        .order("created_at", { ascending: true }),
+        .order("created_at", { ascending: true })
+        .range(0, 4999),
+      supabase
+        .from("leads")
+        .select("id", { count: "exact", head: true })
+        .eq("campaign_id", campaign.id)
+        .in("status", ["processed", "failed", "skipped"]),
     ]);
     if (c) setCampaign(c as Campaign);
     if (l) setLeads(l as Lead[]);
+    if (touched != null) setTouchedCount(touched);
   }, [campaign.id]);
 
   // Poll while running.
@@ -232,6 +243,14 @@ export function CampaignDetail({
           <Progress value={pct} />
         </CardContent>
       </Card>
+
+      {leads.length === 5000 && campaign.total_leads > 5000 ? (
+        <div className="mb-2 rounded-md border border-border bg-card/30 px-3 py-2 text-xs text-muted-foreground">
+          Showing the first 5000 of {campaign.total_leads} leads. The KPI
+          tiles above use server-side counts — they remain accurate
+          beyond this slice. CSV export covers the full set.
+        </div>
+      ) : null}
 
       <div className="rounded-lg border border-border bg-card/30 overflow-hidden">
         <Table>
