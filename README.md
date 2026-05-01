@@ -190,10 +190,15 @@ leads
   -- pass-through input (9 cols from the scraper)
   default_profile_url, full_name, first_name, last_name,
   company_name, title, summary, title_description, location,
-  -- agent output (8 cols, nullable until processed)
-  agent_full_name, function_qualification, function_reasoning,
-  icp_qualification, seniority_scoring, priority_level,
-  product_area, lead_summary,
+  -- agent output (12 cols, nullable until processed)
+  agent_full_name,
+  function_qualification,                           -- 'YES' | 'NO'
+  function_reasoning,
+  icp_qualification,                                -- free text: 'Influencer' / 'Decision Maker' / etc.
+  seniority_scoring,                                -- 1..5
+  domain_classification, subdomain,                 -- categorical
+  subdomain_justification, domain_reasoning,        -- prose
+  priority_level, product_area, lead_summary,
   -- ops
   status ∈ {pending, running, processed, failed, skipped},
   error, llm_prompt_tokens, llm_completion_tokens, llm_latency_ms,
@@ -318,10 +323,19 @@ that serverless runtimes will kill mid-run.
       delay control, delete action, analytics v1
 - [x] **Phantombuster fetch ingestion** · agent dropdown, trim + timestamp
       filter, Push to Campaign handoff into the existing wizard
+- [x] **Domain classification + categorical ICP** · 4 new agent output
+      columns, free-text icp_qualification, end-to-end through worker →
+      DB → expandable lead row → CSV export
+- [x] **Worker hardening** · paginate lead select past PostgREST's
+      1000-row default, post-run completion gate, retry of previously
+      failed leads on rerun, 10 MB Server Action body limit
 - [ ] **M3 — Prompt templates CRUD + domain analytics** · `/templates`
-      forms, `domain` enum on agent output, stacked-bar by domain
+      forms, stacked-bar by `domain_classification`
 - [ ] **M4 — Clay webhook integration** · `clay_webhook_url` per campaign,
       batched push of qualified leads on completion
+- [ ] **Groq 400 retry** · catch the JSON-mode parsing failure (separate
+      from the existing Zod-failure retry) and re-prompt with the
+      malformed output echoed back
 
 See `lead-iq-roadmap.md` (local-only) for the full living roadmap.
 

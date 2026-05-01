@@ -1,6 +1,6 @@
 # Lead-IQ — Product & Architecture Documentation
 
-*Last updated: 2026-04-23*
+*Last updated: 2026-05-01*
 
 Lead-IQ is an internal self-serve tool at Deccan AI that qualifies
 LinkedIn leads against a target Ideal Customer Profile (ICP) using a
@@ -115,6 +115,25 @@ qualified leads, and a seniority distribution bar chart.
   with Zod. If the model fumbles the schema, we retry once echoing the
   validation error; past that, the lead is marked failed with the error
   stored for debugging.
+- **Categorical ICP fit + domain classification.** The agent now emits
+  `icp_qualification` as a category (e.g. "Influencer", "Decision Maker",
+  "Champion") rather than YES/NO, plus a four-field domain bundle
+  (classification, subdomain, subdomain justification, domain reasoning)
+  that gets stored alongside the existing fields, displayed in the lead
+  table, and included in CSV exports.
+- **Inline lead detail.** The campaign-detail table shows compact
+  columns (ICP, Seniority, Domain, Priority, Area) for fast scanning;
+  any row with prose content (function reasoning, subdomain
+  justification, domain reasoning, lead summary) expands inline so you
+  can audit the agent's reasoning without leaving the page or
+  exporting a CSV.
+- **Resilient worker.** Lead pagination handles campaigns over the
+  PostgREST 1000-row default. A post-run gate verifies every lead
+  reached a terminal state before flipping the campaign to
+  `completed` — partial runs land in `failed` with an explicit reason
+  instead of silently misreporting success. Reruns include both
+  `pending` *and* previously `failed` leads so transient errors
+  (Groq 4xx, network blips, expired cookies) can clear on retry.
 - **Bring Your Own Key (BYOK) for Groq.** Every teammate pastes their
   own Groq API key when they start a session. The key lives only in
   the browser tab (sessionStorage) and in the worker process memory
@@ -229,7 +248,9 @@ Groq openai/gpt-oss-120b (JSON mode)
       │    ├─ ok: UPDATE lead SET (agent cols…) status='processed'
       │    └─ invalid: retry once with error echoed, then fail loudly
       │
-      ▼  UPDATE campaigns SET status='completed', qualified_count=…
+      ▼  post-run gate: count(status in 'pending'|'running')
+      │    ├─ zero: UPDATE campaigns SET status='completed', counters…
+      │    └─ non-zero: UPDATE campaigns SET status='failed' (partial run)
       │
       └─▶  CSV export  ·  (planned) Google Sheets batch append
 ```
@@ -270,7 +291,8 @@ Groq openai/gpt-oss-120b (JSON mode)
 - Full campaign creation → run → export loop
 - Analytics dashboard with live data
 - Delete with confirmation
-- Rate-limit-aware worker
+- Rate-limit-aware worker, paginated lead processing, post-run completion gate
+- Failed-lead retry on rerun (status pending OR failed both pulled)
 - BYOK Groq with validation ping
 - Space Mono + ASCII hero login page
 - Password-based shared auth
@@ -278,6 +300,14 @@ Groq openai/gpt-oss-120b (JSON mode)
   `"functionQualification"`, and `"function_qualification"` all work)
 - Phantombuster fetch ingestion — live agent dropdown, trim + timestamp
   filter, Push to Campaign handoff into the existing RunWizard
+- Domain classification fields (classification, subdomain, subdomain
+  justification, domain reasoning) + categorical ICP qualification,
+  end-to-end through worker → DB → UI → CSV
+- Inline expandable lead detail (function reasoning, lead summary,
+  domain reasoning) on the campaign-detail page; KPIs use server-side
+  count queries so they stay accurate beyond the table's 5000-row cap
+- 10 MB Server Action body limit (was 1 MB) so Push to Campaign and
+  manual CSV uploads don't 413 around 200+ row scrapes
 
 **Not yet shipped (roadmap):**
 - **Google Sheets batched push** — the Sheet ID field exists on the
