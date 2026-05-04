@@ -4,7 +4,7 @@ Living doc of what's shipped, what's queued, and what's parked. Update
 it every time something lands or a new request comes in. Keep sections
 short.
 
-*Last updated: 2026-05-01*
+*Last updated: 2026-05-04*
 
 ---
 
@@ -73,7 +73,6 @@ short.
 On the radar, not committed. Promote when a real trigger appears.
 
 **Product**
-- [ ] **Groq 400 "Parsing failed" retry.** The current Zod-failure retry doesn't catch this — it's thrown by Groq's JSON-mode parser before we ever see a string. Catch the 400 + re-prompt with the malformed `failed_generation` echoed back, same shape as the existing schema-failure retry. Plan in `lead-iq-roadmap.md` notes; observed on long lead summaries (~big inputs → bigger outputs → more truncation/quote-escape errors).
 - [ ] Scrape history — persist each fetched PB run to a `scrapes` table (sales nav URL, agent, row count, pushed-to-campaign IDs) so teammates can see what's been pulled without re-fetching. Today each fetch re-downloads from PB on demand.
 - [ ] Native phantom launching from Lead-IQ — revisit the original phantomintegration.md spec (`/agents/save` + `/agents/launch` + cookie BYOK + mutex) if GTM wants "click and scrape" without PB's UI. Deferred; current fetch-only flow covers the need.
 - [ ] Google Sheets push — service-account auth, batched `values.append`. Sheet ID field already exists on campaigns. Was originally M4; Clay took priority.
@@ -105,6 +104,10 @@ On the radar, not committed. Promote when a real trigger appears.
 ---
 
 ## Shipped
+
+**2026-05-04**
+- [x] **Groq 400 "Parsing failed" retry.** Server-side JSON-mode failures (HTTP 400 with `failed_generation`) used to bubble straight to the lead's `failed` row — the existing Zod retry only sees responses that returned 200. Worker now catches `BadRequestError` around the first Groq call, pulls `failed_generation` defensively from either `err.error.error.failed_generation` or `err.error.failed_generation` (gated on `status === 400` so unrelated errors with similarly-named fields don't trigger a retry), and feeds it into the same retry path the schema-mismatch case uses (assistant turn = malformed text, user turn = "rejected, return valid JSON"). Retry budget unchanged (still 1). Other 4xx/5xx still rethrow as before.
+- [x] **`temperature: 0` on agent calls.** Both the first attempt and the retry now pin temperature to 0. Was previously unset, so we were running on Groq's default (≈1.0) — the qualification agent should be near-deterministic, not creative.
 
 **2026-05-01**
 - [x] **Inline lead detail in campaign view.** Compact ICP + Domain columns added to the lead-row table; clicking any row with prose content expands it inline to show function reasoning, subdomain justification, domain reasoning, and lead summary. Eliminates the CSV-export round-trip for QA / spot-checking.

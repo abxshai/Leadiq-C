@@ -287,36 +287,53 @@ async function qualifyLead(args: {
     },
   ];
 
-  // First attempt — strict JSON mode.
-  const first = await client.chat.completions.create({
-    model,
-    response_format: { type: "json_object" },
-    messages: baseMessages,
-  });
+  // First attempt — strict JSON mode. Two failure modes funnel into the
+  // same retry path:
+  //  1. Call returns 200, but the body fails Zod (schema drift).
+  //  2. Groq's JSON-mode parser rejects the model output server-side and
+  //     returns HTTP 400 with `failed_generation` holding the malformed
+  //     text. This never produces a parseable string, so the Zod path
+  //     below can't see it — we have to catch it here.
+  let firstText = "";
+  let firstPromptTokens = 0;
+  let firstCompletionTokens = 0;
+  let correctionPrompt: string;
 
-  const firstText = first.choices[0]?.message?.content ?? "";
-  const firstParsed = tryParseAndValidate(firstText);
-  if (firstParsed.ok) {
-    return {
-      output: firstParsed.value,
-      usage: {
-        prompt: first.usage?.prompt_tokens,
-        completion: first.usage?.completion_tokens,
-      },
-    };
+  try {
+    const first = await client.chat.completions.create({
+      model,
+      temperature: 0,
+      response_format: { type: "json_object" },
+      messages: baseMessages,
+    });
+    firstText = first.choices[0]?.message?.content ?? "";
+    firstPromptTokens = first.usage?.prompt_tokens ?? 0;
+    firstCompletionTokens = first.usage?.completion_tokens ?? 0;
+
+    const firstParsed = tryParseAndValidate(firstText);
+    if (firstParsed.ok) {
+      return {
+        output: firstParsed.value,
+        usage: { prompt: firstPromptTokens, completion: firstCompletionTokens },
+      };
+    }
+    correctionPrompt = `Your previous response did not match the schema: ${firstParsed.error}. Return ONLY a valid JSON object that matches the schema. No markdown, no prose outside JSON.`;
+  } catch (err) {
+    const failedGen = extractFailedGeneration(err);
+    if (!failedGen) throw err;
+    firstText = failedGen;
+    correctionPrompt =
+      "Your previous response was not valid JSON and the parser rejected it. Return ONLY a single JSON object matching the schema. No markdown fences, no prose outside JSON, no trailing text, all strings properly escaped.";
   }
 
-  // Single retry with the validation error echoed back.
   const retry = await client.chat.completions.create({
     model,
+    temperature: 0,
     response_format: { type: "json_object" },
     messages: [
       ...baseMessages,
       { role: "assistant" as const, content: firstText },
-      {
-        role: "user" as const,
-        content: `Your previous response did not match the schema: ${firstParsed.error}. Return ONLY a valid JSON object that matches the schema. No markdown, no prose outside JSON.`,
-      },
+      { role: "user" as const, content: correctionPrompt },
     ],
   });
 
@@ -326,17 +343,39 @@ async function qualifyLead(args: {
     return {
       output: retryParsed.value,
       usage: {
-        prompt:
-          (first.usage?.prompt_tokens ?? 0) +
-          (retry.usage?.prompt_tokens ?? 0),
+        prompt: firstPromptTokens + (retry.usage?.prompt_tokens ?? 0),
         completion:
-          (first.usage?.completion_tokens ?? 0) +
-          (retry.usage?.completion_tokens ?? 0),
+          firstCompletionTokens + (retry.usage?.completion_tokens ?? 0),
       },
     };
   }
 
   throw new Error(`Invalid agent output after retry: ${retryParsed.error}`);
+}
+
+function extractFailedGeneration(err: unknown): string | null {
+  if (typeof err !== "object" || err === null) return null;
+  // Only the JSON-mode 400 carries `failed_generation`. Gate on status to
+  // avoid retrying on unrelated 4xx/5xx that happen to share a field name.
+  // OpenAI SDK BadRequestError exposes the response body on `.error`; Groq
+  // wraps its API error under `body.error`, so the field can sit at either
+  // depth depending on SDK version / future changes — try both.
+  const e = err as {
+    status?: unknown;
+    error?: {
+      error?: { failed_generation?: unknown };
+      failed_generation?: unknown;
+    };
+  };
+  if (e.status !== 400) return null;
+  const candidates = [
+    e.error?.error?.failed_generation,
+    e.error?.failed_generation,
+  ];
+  for (const c of candidates) {
+    if (typeof c === "string" && c.length > 0) return c;
+  }
+  return null;
 }
 
 function tryParseAndValidate(
