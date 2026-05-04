@@ -138,14 +138,58 @@ export function normalizeAgentOutput(raw: unknown): Record<string, unknown> {
     }
   }
 
-  // 3. Coerce function_qualification to strict YES/NO. icp_qualification
-  // is now a free string (categorical: "Influencer", "Decision Maker",
-  // "Champion", etc.) — only trim it.
+  // 3. Array-to-string coercion for string fields. gpt-oss-120b sometimes
+  // returns prose as an array of sentences (`["foo", "bar"]`) instead of a
+  // joined string — observed in production on subdomain_justification and
+  // similar fields. Join with spaces; drop empty/non-string entries.
+  const STRING_FIELDS = [
+    "full_name",
+    "function_reasoning",
+    "icp_qualification",
+    "domain_classification",
+    "subdomain",
+    "subdomain_justification",
+    "domain_reasoning",
+    "priority_level",
+    "product_area",
+    "lead_summary",
+  ] as const;
+  for (const key of STRING_FIELDS) {
+    const v = normalized[key];
+    if (Array.isArray(v)) {
+      const joined = v
+        .filter((x): x is string => typeof x === "string" && x.trim().length > 0)
+        .map((x) => x.trim())
+        .join(" ");
+      normalized[key] = joined.length > 0 ? joined : null;
+    }
+  }
+
+  // 4. Coerce function_qualification to strict YES/NO. icp_qualification
+  // is a free string (categorical: "Influencer", "Decision Maker",
+  // "Champion", etc.) and was already array-flattened above.
   normalized.function_qualification = coerceYesNo(
     normalized.function_qualification
   );
 
-  // 4. Trim whitespace-only strings to null so Zod ".nullable()" paths work.
+  // 5. Clamp seniority_scoring to the 1–5 range. The model occasionally
+  // returns 0 (or strings/floats outside the band) when it's unsure;
+  // out-of-range values become null rather than failing the whole lead.
+  const rawSeniority = normalized.seniority_scoring;
+  if (rawSeniority !== null && rawSeniority !== undefined) {
+    const n = typeof rawSeniority === "number"
+      ? rawSeniority
+      : typeof rawSeniority === "string"
+        ? Number(rawSeniority)
+        : NaN;
+    if (!Number.isFinite(n) || n < 1 || n > 5) {
+      normalized.seniority_scoring = null;
+    } else {
+      normalized.seniority_scoring = Math.round(n);
+    }
+  }
+
+  // 6. Trim whitespace-only strings to null so Zod ".nullable()" paths work.
   for (const key of [
     "priority_level",
     "product_area",
