@@ -303,6 +303,7 @@ async function qualifyLead(args: {
     const first = await client.chat.completions.create({
       model,
       temperature: 0,
+      max_tokens: 4096,
       response_format: { type: "json_object" },
       messages: baseMessages,
     });
@@ -326,9 +327,15 @@ async function qualifyLead(args: {
       "Your previous response was not valid JSON and the parser rejected it. Return ONLY a single JSON object matching the schema. No markdown fences, no prose outside JSON, no trailing text, all strings properly escaped.";
   }
 
+  // Retry runs at non-zero temperature on purpose: with temp=0 on both
+  // calls the model often regenerates the same malformed output (the
+  // conversation prefix is near-identical), so the retry inherits the
+  // deterministic failure. A small bump gives just enough variance to
+  // escape that trap without making the schema creative.
   const retry = await client.chat.completions.create({
     model,
-    temperature: 0,
+    temperature: 0.3,
+    max_tokens: 4096,
     response_format: { type: "json_object" },
     messages: [
       ...baseMessages,
