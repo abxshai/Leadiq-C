@@ -153,7 +153,8 @@ async function execute({
               .from("leads")
               .update({
                 agent_full_name: result.output.full_name ?? null,
-                function_qualification: result.output.function_qualification,
+                function_qualification:
+                  result.output.function_qualification ?? null,
                 function_reasoning: result.output.function_reasoning ?? null,
                 icp_qualification: result.output.icp_qualification ?? null,
                 seniority_scoring: result.output.seniority_scoring ?? null,

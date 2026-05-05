@@ -55,10 +55,16 @@ type LeadExport = {
 };
 
 export async function GET(
-  _request: Request,
+  request: Request,
   ctx: { params: Promise<{ id: string }> }
 ) {
   const { id } = await ctx.params;
+  // `qualified=1` filters out leads with an explicit "NO" verdict and
+  // any lead that never reached a verdict (null function_qualification —
+  // failed/pending rows). Any other value flows through (YES, plus any
+  // categorical verdict a custom prompt produces).
+  const qualifiedOnly =
+    new URL(request.url).searchParams.get("qualified") === "1";
   const supabase = await createServerSupabase();
 
   const { data: campaign } = await supabase
@@ -77,10 +83,16 @@ export async function GET(
     "default_profile_url, full_name, first_name, last_name, company_name, title, summary, title_description, location, agent_full_name, function_qualification, function_reasoning, icp_qualification, seniority_scoring, domain_classification, subdomain, subdomain_justification, domain_reasoning, priority_level, product_area, lead_summary";
   const allLeads: LeadExport[] = [];
   for (let start = 0; ; start += PAGE_SIZE) {
-    const { data, error } = await supabase
+    let query = supabase
       .from("leads")
       .select(leadCols)
-      .eq("campaign_id", id)
+      .eq("campaign_id", id);
+    if (qualifiedOnly) {
+      query = query
+        .not("function_qualification", "is", null)
+        .neq("function_qualification", "NO");
+    }
+    const { data, error } = await query
       .order("created_at", { ascending: true })
       .range(start, start + PAGE_SIZE - 1);
     if (error) {
@@ -117,11 +129,12 @@ export async function GET(
 
   const csv = Papa.unparse({ fields: COLUMNS, data: rows }, { quotes: true });
   const safeName = campaign.name.replace(/[^a-z0-9-_ ]/gi, "").slice(0, 60);
+  const suffix = qualifiedOnly ? "-qualified" : "";
 
   return new NextResponse(csv, {
     headers: {
       "content-type": "text/csv; charset=utf-8",
-      "content-disposition": `attachment; filename="${safeName || "campaign"}.csv"`,
+      "content-disposition": `attachment; filename="${safeName || "campaign"}${suffix}.csv"`,
     },
   });
 }

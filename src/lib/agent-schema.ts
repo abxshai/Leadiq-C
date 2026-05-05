@@ -4,13 +4,14 @@ import { z } from "zod";
 // table. Nullable fields follow the short-circuit behavior where
 // function_qualification = "NO" causes downstream fields to be dropped.
 //
-// icp_qualification is intentionally a free string (not YES/NO) — the
-// production prompt treats ICP fit as a category like "Influencer",
-// "Decision Maker", "Champion", "Champion-User", etc. Old YES/NO values
-// remain valid strings.
+// Both function_qualification and icp_qualification are free strings —
+// custom prompts can return categorical verdicts (e.g. "Decision Maker",
+// "Champion", "Influencer") instead of YES/NO. Legacy YES/NO values stay
+// valid strings; analytics + the worker's qualified_count still match on
+// === "YES" for now until the analytics revamp lands.
 export const AgentOutputSchema = z.object({
   full_name: z.string().optional().nullable(),
-  function_qualification: z.enum(["YES", "NO"]),
+  function_qualification: z.string().optional().nullable(),
   // function_reasoning + lead_summary are nominally required by the prompt
   // contract, but gpt-oss-120b occasionally omits them on terse "NO"
   // responses. DB columns are nullable; mirror that here so a missing
@@ -169,9 +170,11 @@ export function normalizeAgentOutput(raw: unknown): Record<string, unknown> {
     }
   }
 
-  // 4. Coerce function_qualification to strict YES/NO. icp_qualification
-  // is a free string (categorical: "Influencer", "Decision Maker",
-  // "Champion", etc.) and was already array-flattened above.
+  // 4. Normalize function_qualification: map known YES/NO synonyms (true,
+  // "Y", "qualified", etc.) onto the canonical "YES"/"NO" tokens so the
+  // legacy === "YES" predicate keeps working, but pass through any other
+  // string unchanged so categorical prompts ("Decision Maker", "Champion",
+  // …) survive intact.
   normalized.function_qualification = coerceYesNo(
     normalized.function_qualification
   );
@@ -212,14 +215,17 @@ export function normalizeAgentOutput(raw: unknown): Record<string, unknown> {
   return normalized;
 }
 
-function coerceYesNo(v: unknown): "YES" | "NO" | null | undefined {
+function coerceYesNo(v: unknown): string | null | undefined {
   if (v === null || v === undefined) return v as null | undefined;
   if (typeof v === "boolean") return v ? "YES" : "NO";
   if (typeof v === "string") {
-    const u = v.trim().toUpperCase();
+    const trimmed = v.trim();
+    if (trimmed.length === 0) return null;
+    const u = trimmed.toUpperCase();
     if (["YES", "Y", "TRUE", "1", "QUALIFIED"].includes(u)) return "YES";
     if (["NO", "N", "FALSE", "0", "UNQUALIFIED", "NOT QUALIFIED"].includes(u))
       return "NO";
+    return trimmed;
   }
   return undefined;
 }

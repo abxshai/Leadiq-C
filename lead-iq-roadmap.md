@@ -4,7 +4,7 @@ Living doc of what's shipped, what's queued, and what's parked. Update
 it every time something lands or a new request comes in. Keep sections
 short.
 
-*Last updated: 2026-05-04*
+*Last updated: 2026-05-05*
 
 ---
 
@@ -111,6 +111,10 @@ On the radar, not committed. Promote when a real trigger appears.
 - [x] **Retry escape from deterministic JSON-mode failures.** Bumped retry temperature to `0.3` (first call stays at `0`) so when Groq's JSON parser rejects the first output, the retry has enough variance to actually produce different text instead of regenerating the same malformed structure under near-identical prompt context. Also set `max_tokens: 4096` on both calls so verbose prose outputs (4 long reasoning fields × multi-sentence) don't silently truncate mid-JSON.
 - [x] **Normalizer hardening: array-prose + out-of-range seniority.** Two recurring Zod failures observed in production: (1) gpt-oss-120b sometimes returns prose fields as an array of sentences (`["foo", "bar"]`) instead of a joined string — observed on `subdomain_justification`, applied uniformly to all string fields; (2) model occasionally returns `seniority_scoring = 0` (or strings/out-of-band floats) when unsure — out-of-range now coerces to null rather than failing the whole lead. Both are upstream of Zod so the schema stays strict.
 - [x] **Relax `function_reasoning` + `lead_summary` to nullable.** Schema had both as required strings, but the model occasionally returns terse "NO" responses with these fields omitted entirely — failing the whole lead instead of just dropping the prose. DB columns are already nullable; Zod now matches. Worker writes `?? null` to keep undefined out of the update payload.
+
+**2026-05-05**
+- [x] **`function_qualification` is now free-form (categorical-friendly).** Custom prompts can return `"Decision Maker"` / `"Influencer"` / `"Champion"` / etc. instead of being silently coerced back to `YES`/`NO`. Migration `0003_function_qualification_categorical.sql` drops the DB CHECK constraint (apply via Supabase SQL editor — project convention); Zod relaxed from enum to free string; normalizer's `coerceYesNo` now passes unrecognized strings through unchanged while still mapping known synonyms (`true`, `Y`, `qualified`, …) onto canonical `YES`/`NO` for legacy data. Analytics + `campaigns.qualified_count` still match on `=== "YES"` for now (legacy semantics — the analytics revamp will make these predicate-driven).
+- [x] **Export CSV toggle: All leads / Qualified only.** Replaced the bare Export button with a dropdown. "Qualified only" filters out explicit `"NO"` verdicts plus any null `function_qualification` (failed/pending leads), and works prompt-agnostically — any non-`NO` value flows through, so categorical prompts are correctly included. Filename suffix `-qualified.csv` reflects the filter.
 
 **2026-05-01**
 - [x] **Inline lead detail in campaign view.** Compact ICP + Domain columns added to the lead-row table; clicking any row with prose content expands it inline to show function reasoning, subdomain justification, domain reasoning, and lead summary. Eliminates the CSV-export round-trip for QA / spot-checking.

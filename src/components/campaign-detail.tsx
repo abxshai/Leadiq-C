@@ -17,6 +17,12 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardContent } from "@/components/ui/card";
 import { Progress } from "@/components/ui/progress";
 import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from "@/components/ui/dropdown-menu";
+import {
   Table,
   TableBody,
   TableCell,
@@ -211,14 +217,37 @@ export function CampaignDetail({
         </div>
 
         <div className="flex items-center gap-2">
-          <a
-            href={`/api/campaigns/${campaign.id}/export.csv`}
-            download
-            className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm hover:bg-muted transition-colors"
-          >
-            <Download className="h-4 w-4" />
-            Export CSV
-          </a>
+          <DropdownMenu>
+            <DropdownMenuTrigger
+              className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm hover:bg-muted transition-colors"
+            >
+              <Download className="h-4 w-4" />
+              Export CSV
+              <ChevronDown className="h-3 w-3" />
+            </DropdownMenuTrigger>
+            <DropdownMenuContent align="end">
+              <DropdownMenuItem
+                render={
+                  <a
+                    href={`/api/campaigns/${campaign.id}/export.csv`}
+                    download
+                  />
+                }
+              >
+                All leads
+              </DropdownMenuItem>
+              <DropdownMenuItem
+                render={
+                  <a
+                    href={`/api/campaigns/${campaign.id}/export.csv?qualified=1`}
+                    download
+                  />
+                }
+              >
+                Qualified only
+              </DropdownMenuItem>
+            </DropdownMenuContent>
+          </DropdownMenu>
           {canStart ? (
             <Button onClick={onStart} disabled={starting} className="gap-2">
               {starting ? (
