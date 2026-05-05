@@ -11,7 +11,11 @@ import { z } from "zod";
 export const AgentOutputSchema = z.object({
   full_name: z.string().optional().nullable(),
   function_qualification: z.enum(["YES", "NO"]),
-  function_reasoning: z.string().min(1),
+  // function_reasoning + lead_summary are nominally required by the prompt
+  // contract, but gpt-oss-120b occasionally omits them on terse "NO"
+  // responses. DB columns are nullable; mirror that here so a missing
+  // field becomes a null cell instead of a dropped lead.
+  function_reasoning: z.string().min(1).optional().nullable(),
   icp_qualification: z.string().optional().nullable(),
   seniority_scoring: z
     .union([z.number(), z.string().transform((s) => Number(s))])
@@ -24,7 +28,7 @@ export const AgentOutputSchema = z.object({
   domain_reasoning: z.string().optional().nullable(),
   priority_level: z.string().optional().nullable(),
   product_area: z.string().optional().nullable(),
-  lead_summary: z.string().min(1),
+  lead_summary: z.string().min(1).optional().nullable(),
 });
 
 export type AgentOutput = z.infer<typeof AgentOutputSchema>;

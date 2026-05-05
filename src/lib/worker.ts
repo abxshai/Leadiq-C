@@ -154,7 +154,7 @@ async function execute({
               .update({
                 agent_full_name: result.output.full_name ?? null,
                 function_qualification: result.output.function_qualification,
-                function_reasoning: result.output.function_reasoning,
+                function_reasoning: result.output.function_reasoning ?? null,
                 icp_qualification: result.output.icp_qualification ?? null,
                 seniority_scoring: result.output.seniority_scoring ?? null,
                 domain_classification:
@@ -165,7 +165,7 @@ async function execute({
                 domain_reasoning: result.output.domain_reasoning ?? null,
                 priority_level: result.output.priority_level ?? null,
                 product_area: result.output.product_area ?? null,
-                lead_summary: result.output.lead_summary,
+                lead_summary: result.output.lead_summary ?? null,
                 status: "processed",
                 error: null,
                 llm_prompt_tokens: result.usage?.prompt ?? null,
