@@ -70,6 +70,12 @@ export async function createCampaign(input: CreateCampaignInput) {
   }
 
   // Bulk insert leads in chunks to stay under payload size limits.
+  // Use upsert + ignoreDuplicates as defense-in-depth: lead-parser already
+  // dedupes by default_profile_url, but if a duplicate ever sneaks past
+  // (e.g. via a future ingest path), the unique constraint
+  // `(campaign_id, default_profile_url)` would atomically roll back the
+  // entire chunk and abort the import partway through. ignoreDuplicates
+  // makes that a silent skip instead of a hard fail.
   const chunkSize = 500;
   for (let i = 0; i < input.leads.length; i += chunkSize) {
     const chunk = input.leads.slice(i, i + chunkSize).map((l) => ({
@@ -77,7 +83,12 @@ export async function createCampaign(input: CreateCampaignInput) {
       campaign_id: campaign.id,
       status: "pending" as const,
     }));
-    const { error } = await supabase.from("leads").insert(chunk);
+    const { error } = await supabase
+      .from("leads")
+      .upsert(chunk, {
+        onConflict: "campaign_id,default_profile_url",
+        ignoreDuplicates: true,
+      });
     if (error) throw new Error(`Failed to insert leads: ${error.message}`);
   }
 

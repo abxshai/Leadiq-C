@@ -16,6 +16,7 @@ export type ParseResult = {
   leads: ParsedLead[];
   detectedColumns: string[];
   missingColumns: (keyof ParsedLead)[];
+  duplicatesSkipped: number;
 };
 
 const INPUT_COLUMNS: (keyof ParsedLead)[] = [
@@ -110,11 +111,39 @@ function build(rows: Record<string, unknown>[], detected: string[]): ParseResult
   );
   const missing = INPUT_COLUMNS.filter((c) => !canonicalHeaders.has(c));
 
-  const leads = rows
+  // Drop rows with neither URL nor name (nothing to qualify), then dedupe
+  // by default_profile_url. The leads table has `unique (campaign_id,
+  // default_profile_url)`, so keeping a duplicate URL would atomically
+  // roll back its INSERT chunk and abort the import partway through.
+  // Rows with a null URL are kept as-is — Postgres treats nulls as
+  // distinct in unique constraints, so they can't collide.
+  const filtered = rows
     .map(rowToLead)
     .filter((l) => l.default_profile_url || l.full_name);
 
-  return { leads, detectedColumns: detected, missingColumns: missing };
+  const seen = new Set<string>();
+  const leads: ParsedLead[] = [];
+  let duplicatesSkipped = 0;
+  for (const lead of filtered) {
+    const url = lead.default_profile_url;
+    if (url === null) {
+      leads.push(lead);
+      continue;
+    }
+    if (seen.has(url)) {
+      duplicatesSkipped += 1;
+      continue;
+    }
+    seen.add(url);
+    leads.push(lead);
+  }
+
+  return {
+    leads,
+    detectedColumns: detected,
+    missingColumns: missing,
+    duplicatesSkipped,
+  };
 }
 
 export async function parseFile(file: File): Promise<ParseResult> {

@@ -448,7 +448,7 @@ function Stepper({ step }: { step: number }) {
 }
 
 function ParsePreview({ result }: { result: ParseResult }) {
-  const { leads, detectedColumns, missingColumns } = result;
+  const { leads, detectedColumns, missingColumns, duplicatesSkipped } = result;
   return (
     <div className="space-y-3">
       <div className="flex flex-wrap items-center gap-2 text-sm">
@@ -461,6 +461,15 @@ function ParsePreview({ result }: { result: ParseResult }) {
         <Badge variant="outline" className="text-muted-foreground">
           {detectedColumns.length} columns detected
         </Badge>
+        {duplicatesSkipped > 0 ? (
+          <Badge
+            variant="outline"
+            className="border-yellow-500/40 bg-yellow-500/10 text-yellow-400"
+          >
+            {duplicatesSkipped} duplicate{duplicatesSkipped === 1 ? "" : "s"}{" "}
+            skipped
+          </Badge>
+        ) : null}
         {missingColumns.length > 0 ? (
           <Badge
             variant="outline"

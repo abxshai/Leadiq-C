@@ -4,7 +4,7 @@ Living doc of what's shipped, what's queued, and what's parked. Update
 it every time something lands or a new request comes in. Keep sections
 short.
 
-*Last updated: 2026-05-05*
+*Last updated: 2026-05-06*
 
 ---
 
@@ -115,6 +115,9 @@ On the radar, not committed. Promote when a real trigger appears.
 **2026-05-05**
 - [x] **`function_qualification` is now free-form (categorical-friendly).** Custom prompts can return `"Decision Maker"` / `"Influencer"` / `"Champion"` / etc. instead of being silently coerced back to `YES`/`NO`. Migration `0003_function_qualification_categorical.sql` drops the DB CHECK constraint (apply via Supabase SQL editor — project convention); Zod relaxed from enum to free string; normalizer's `coerceYesNo` now passes unrecognized strings through unchanged while still mapping known synonyms (`true`, `Y`, `qualified`, …) onto canonical `YES`/`NO` for legacy data. Analytics + `campaigns.qualified_count` still match on `=== "YES"` for now (legacy semantics — the analytics revamp will make these predicate-driven).
 - [x] **Export CSV toggle: All leads / Qualified only.** Replaced the bare Export button with a dropdown. "Qualified only" filters out explicit `"NO"` verdicts plus any null `function_qualification` (failed/pending leads), and works prompt-agnostically — any non-`NO` value flows through, so categorical prompts are correctly included. Filename suffix `-qualified.csv` reflects the filter.
+
+**2026-05-06**
+- [x] **Dedupe duplicate `default_profile_url` rows on ingest.** Diagnosed via a 1724-row campaign that landed only 1000 leads in the DB. The `leads` table has `unique (campaign_id, default_profile_url)`; whichever INSERT chunk first contained a duplicate URL rolled back atomically and the action threw — but earlier chunks were already committed, leaving a half-imported campaign with `total_leads` lying about the real count. Lead-parser now dedupes by `default_profile_url` (rows with null URL are kept — Postgres treats nulls as distinct in unique constraints) and surfaces a `duplicatesSkipped` count; the wizard preview shows it as a yellow badge so the user sees the reduction *before* creating the campaign. Server-side `createCampaign` switched from `.insert()` to `.upsert(…, { ignoreDuplicates: true })` as defense-in-depth so any future ingest path that bypasses the parser still can't half-import.
 
 **2026-05-01**
 - [x] **Inline lead detail in campaign view.** Compact ICP + Domain columns added to the lead-row table; clicking any row with prose content expands it inline to show function reasoning, subdomain justification, domain reasoning, and lead summary. Eliminates the CSV-export round-trip for QA / spot-checking.
