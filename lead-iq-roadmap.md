@@ -4,7 +4,7 @@ Living doc of what's shipped, what's queued, and what's parked. Update
 it every time something lands or a new request comes in. Keep sections
 short.
 
-*Last updated: 2026-05-06*
+*Last updated: 2026-05-07*
 
 ---
 
@@ -20,28 +20,35 @@ short.
 
 ## Next up (active milestones)
 
-### M3 — Prompt templates CRUD + domain analytics
+### M3 — Dynamic analytics + prompt templates CRUD
 
-**Why:** Teammates can't add new ICPs without SQL. Analytics group on free-text fields, so the charts get noisy at scale.
-**Blocks:** domain chart is useless until we have a stable category column.
+**Why:** Analytics is currently a fixed 30-day window on hard-coded predicates that pre-date the categorical relaxation — `qualified` is still `function_qualification === "YES"` so any custom-prompt run shows 0 qualified, and there's no way to slice by template, campaign, or date range. Prompt templates are still SQL-only to edit; teammates can't iterate on ICPs without engineering involvement.
 
-**To build:**
+**Blocks:** these two ship together because the analytics filters need a stable list of templates to filter on, and CRUD on templates makes the filter useful.
+
+**To build — analytics:**
+- [ ] Predicate switch: `qualified` becomes `function_qualification IS NOT NULL AND != 'NO'` everywhere it's currently `=== "YES"` (analytics page + worker `qualified_count` increment + campaigns-list display). Legacy YES/NO data still counts; categorical verdicts now count too.
+- [ ] Date-range filter (last 7 / 30 / 90 days, custom range)
+- [ ] Template multi-select filter (drives all KPIs + charts)
+- [ ] Per-campaign drilldown (link from campaigns list → analytics filtered to that campaign)
+- [ ] Domain-distribution chart — stacked bar of qualified leads by `domain_classification`. Column exists since 2026-04-30, just needs wiring.
+- [ ] Function-qualification distribution chart — replaces the binary qualified-vs-not chart with a top-N category breakdown so categorical prompts ("Decision Maker", "Champion", etc.) are visible.
+- [ ] Token-spend card — sum of `llm_prompt_tokens + llm_completion_tokens` filtered by current selection, with a rough $ estimate.
+
+**To build — prompt CRUD:**
 - [ ] `/templates/new` page — form: name, description, system_prompt textarea, is_default toggle
-- [ ] `/templates/[id]` edit page — same form, pre-filled, saves bump `version` + append to `prompt_template_versions`
+- [ ] `/templates/[id]` edit page — same form, pre-filled. Save bumps `version` and appends to `prompt_template_versions` (schema already supports this).
 - [ ] Duplicate action on template cards → opens `/templates/new` with "Copy of X" pre-filled
-- [ ] Archive (not delete) — sets `archived_at`, hides from wizard picker, keeps old campaign snapshots valid
+- [ ] Archive (not delete) — sets `archived_at`, hides from wizard picker, keeps old campaign snapshots valid (the prompt-snapshot-is-sacred principle from DOCS §9 holds)
 - [ ] Version history drawer with "Restore this version" action
-- [x] ~~Add `domain` enum column to agent output~~ — shipped 2026-04-30 as 4 nullable text columns (classification + subdomain + their justifications); free-form rather than enum so prompts can evolve their categorisation without migrations.
-- [x] ~~Update normalizer + AgentOutputSchema to validate `domain`~~ — shipped 2026-04-30.
-- [ ] Analytics: "Qualified leads by domain" chart (stacked bar) — column exists, just needs the chart wired up.
-- [ ] Analytics filters: date range, template multi-select, qualified-only toggle
 
 **Open questions for you:**
-1. **Domain enum values** — my starter set: `robotics`, `autonomous-vehicles`, `llm-infra`, `manufacturing`, `enterprise-saas`, `other`. Anything to add / drop / rename?
-2. **Backfill strategy** — do we re-run old leads through a backfill job to populate `domain`, or let historical leads show `domain = null` and only new leads get it? Backfill costs Groq tokens; null is free but splits analytics.
-3. **Who gets edit rights** — anyone signed in can edit every template (matches current RLS), or do we scope editing to whoever created it? I lean "anyone edits, history preserved" for a 5-person team.
+1. **Default time window** — last 30 days, or "all time" once filters land? I lean 30 days as default with a "clear filter" button to see all-time.
+2. **Domain chart** — current `domain_classification` is free-form text so a stacked bar might show a long tail. Top-N (say top 6 + "Other") or full list? I lean top-6.
+3. **Edit rights for templates** — anyone signed in can edit every template (matches current RLS for the 5-person team), or do we scope editing to whoever created it? I lean "anyone edits, history preserved".
+4. **Token-spend card** — drop it from M3 if the answer to "do we care about cost yet?" is "not really". Easy to pull out.
 
-**Estimate:** 4–6 hours.
+**Estimate:** 8–10 hours total (5–6h analytics, 3–4h CRUD).
 
 ---
 

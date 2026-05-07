@@ -1,6 +1,6 @@
 # Lead-IQ — Product & Architecture Documentation
 
-*Last updated: 2026-05-01*
+*Last updated: 2026-05-07*
 
 Lead-IQ is an internal self-serve tool at Deccan AI that qualifies
 LinkedIn leads against a target Ideal Customer Profile (ICP) using a
@@ -111,16 +111,34 @@ qualified leads, and a seniority distribution bar chart.
   without retroactively changing last month's analytics.
 - **No manual JSON cleanup.** The agent's output is treated as
   structured JSON (Groq's `response_format: json_object`), normalized
-  for key-naming variants and YES/NO casing, then strictly validated
-  with Zod. If the model fumbles the schema, we retry once echoing the
-  validation error; past that, the lead is marked failed with the error
-  stored for debugging.
-- **Categorical ICP fit + domain classification.** The agent now emits
-  `icp_qualification` as a category (e.g. "Influencer", "Decision Maker",
-  "Champion") rather than YES/NO, plus a four-field domain bundle
-  (classification, subdomain, subdomain justification, domain reasoning)
-  that gets stored alongside the existing fields, displayed in the lead
-  table, and included in CSV exports.
+  for key-naming variants, YES/NO casing, prose-as-array coercion, and
+  out-of-range seniority clamping, then validated with Zod. We retry
+  once on schema mismatch (echoing the Zod error back to the model) and
+  on Groq's HTTP 400 `json_validate_failed` (echoing the malformed
+  `failed_generation` back as the assistant turn). The retry runs at a
+  small non-zero temperature to escape deterministic-failure loops.
+  Past one retry, the lead is marked failed with the exact error stored
+  for debugging.
+- **Categorical verdicts everywhere.** Both `function_qualification` and
+  `icp_qualification` accept free-form categorical values — custom
+  prompts can return `"Decision Maker"` / `"Champion"` / `"Influencer"`
+  and they flow straight through to the DB and CSV. The four-field
+  domain bundle (classification, subdomain, subdomain justification,
+  domain reasoning) is stored alongside, displayed in the lead table,
+  and included in exports. Loose YES/NO synonyms (`"Y"`, `"qualified"`,
+  `true`) still snap onto canonical YES/NO for legacy data.
+- **Export toggle.** CSV export dropdown: **All leads** (everything) or
+  **Qualified only** (excludes explicit `"NO"` verdicts plus failed/
+  pending leads). The "qualified" predicate is `function_qualification
+  IS NOT NULL AND != 'NO'`, so it works prompt-agnostically — a
+  categorical-prompt run still gets the right inclusion behavior.
+- **Ingest dedupe.** The parser dedupes by `default_profile_url` before
+  submission, surfacing a "duplicates skipped" badge in the wizard
+  preview so the user sees the real row count up front. Server-side,
+  the action uses `upsert(ignoreDuplicates: true)` against the
+  `(campaign_id, default_profile_url)` unique constraint as defense in
+  depth — duplicate URLs can no longer atomically roll back an INSERT
+  chunk and leave a half-imported campaign behind.
 - **Inline lead detail.** The campaign-detail table shows compact
   columns (ICP, Seniority, Domain, Priority, Area) for fast scanning;
   any row with prose content (function reasoning, subdomain
@@ -288,45 +306,75 @@ Groq openai/gpt-oss-120b (JSON mode)
 ## 8. Current state
 
 **Shipped:**
-- Full campaign creation → run → export loop
-- Analytics dashboard with live data
+- Full campaign creation → run → export loop with rerun-failed support
+- Analytics dashboard with live data (static cards, fixed time window —
+  next milestone makes it dynamic)
 - Delete with confirmation
-- Rate-limit-aware worker, paginated lead processing, post-run completion gate
-- Failed-lead retry on rerun (status pending OR failed both pulled)
-- BYOK Groq with validation ping
-- Space Mono + ASCII hero login page
-- Password-based shared auth
-- Agent output key-variant normalizer (so `"Function Qualification"`,
-  `"functionQualification"`, and `"function_qualification"` all work)
+- Rate-limit-aware worker; paginated lead SELECT (handles ≥1k campaigns
+  past PostgREST's row cap); post-run completion gate that flips the
+  campaign to `failed` with an explicit "partial run" reason if any
+  lead is left in a non-terminal state
+- BYOK Groq + Phantombuster keys, both session-scoped, never persisted
 - Phantombuster fetch ingestion — live agent dropdown, trim + timestamp
   filter, Push to Campaign handoff into the existing RunWizard
-- Domain classification fields (classification, subdomain, subdomain
-  justification, domain reasoning) + categorical ICP qualification,
-  end-to-end through worker → DB → UI → CSV
-- Inline expandable lead detail (function reasoning, lead summary,
-  domain reasoning) on the campaign-detail page; KPIs use server-side
-  count queries so they stay accurate beyond the table's 5000-row cap
+- Agent output key-variant normalizer (handles
+  `"Function Qualification"`, `"functionQualification"`,
+  `"function_qualification"`, plus loose YES/NO casing, prose-as-array
+  coercion, out-of-range seniority clamping)
+- Domain classification fields end-to-end (classification, subdomain,
+  subdomain justification, domain reasoning); `icp_qualification` and
+  `function_qualification` both accept categorical values now —
+  custom prompts can return `"Decision Maker"` / `"Champion"` / etc.
+  without being silently coerced back to YES/NO
+- Inline expandable lead detail on the campaign-detail page (function
+  reasoning, subdomain justification, domain reasoning, lead summary)
+- KPIs use server-side count queries so they stay accurate beyond the
+  lead-table's 5000-row visual cap
+- CSV export with **All leads / Qualified only** dropdown — qualified
+  predicate is `function_qualification IS NOT NULL AND != 'NO'`,
+  prompt-agnostic so categorical verdicts flow through correctly
+- Worker reliability: catches Groq HTTP 400 `json_validate_failed`
+  (echoes `failed_generation` back as the assistant turn for the retry,
+  same shape as the Zod-failure retry); retry runs at non-zero
+  temperature to escape deterministic-output loops; `max_tokens=4096`
+  on both calls; first-call temperature pinned to 0
+- Schema relaxed: `function_reasoning` and `lead_summary` nullable
+  (model occasionally omits prose on terse "NO" verdicts); failing the
+  whole lead is no longer the failure mode
+- Ingest dedupe by `default_profile_url` in the parser plus
+  `upsert(ignoreDuplicates: true)` server-side, so duplicate URLs no
+  longer atomically roll back an INSERT chunk and leave a half-imported
+  campaign with `total_leads` lying about the real count
 - 10 MB Server Action body limit (was 1 MB) so Push to Campaign and
   manual CSV uploads don't 413 around 200+ row scrapes
+- Space Mono + ASCII hero login page; password-based shared auth
 
 **Not yet shipped (roadmap):**
-- **Google Sheets batched push** — the Sheet ID field exists on the
-  campaign row, but no push endpoint yet. Requires a Google Cloud
-  service account. ~4 hours of work.
-- **Analytics filters** — date range, per-template A/B comparison,
-  per-campaign drilldown. ~6 hours.
-- **Prompt templates CRUD UI** — currently the two seeded templates
-  are read-only in the UI; editing requires SQL. ~4 hours.
+- **Analytics revamp — dynamic filters + cards** *(next milestone)* —
+  date range, per-template + per-campaign filtering, qualified-rate
+  re-defined as `function_qualification != 'NO'` (works for legacy
+  YES/NO and categorical alike), domain-distribution chart added.
+- **Prompt templates CRUD UI** *(next milestone)* — currently the two
+  seeded templates are read-only in the UI; editing/duplicating/
+  archiving requires SQL.
+- **Clay webhook push** — qualified leads pushed to Clay for outreach;
+  M4 in the roadmap once M3 lands. Pre-empted Google Sheets push.
 - **Scheduled / cron runs** — today everything is user-triggered.
 - **Multi-tenant** — single-workspace mode for now, by choice.
 
 **Known limitations:**
 - A server restart while a campaign is running abandons the run (the
-  worker is in-process, not persisted). Mitigation: pause → resume
-  works, you'd click Resume after the restart.
+  worker is in-process, not persisted). Mitigation: SQL flip campaign
+  back to `failed` and any leads from `running → pending`, then click
+  Resume. The "Zombie-campaign auto-reset on server boot" backlog item
+  would automate this.
+- Phantombuster Sales Nav phantoms cap around ~1000 rows per run by
+  default. If you need more, split the search into multiple narrower
+  phantoms and concat the CSVs (Lead-IQ dedupes on ingest).
 - Agent output quality depends on the prompt — ad-hoc prompts that
   don't describe the expected JSON schema clearly will cause
-  validation failures. Use the seeded templates as a reference.
+  validation failures, even with the categorical relaxation. Use the
+  seeded templates as a reference.
 
 ---
 
