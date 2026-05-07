@@ -175,7 +175,11 @@ async function execute({
                 processed_at: new Date().toISOString(),
               })
               .eq("id", lead.id);
-            if (result.output.function_qualification === "YES") qualified += 1;
+            // Anything that isn't an explicit "NO" counts as qualified —
+            // categorical prompts ("Decision Maker" / "Influencer" / etc.)
+            // need to increment qualified_count, not just literal "YES".
+            const fq = result.output.function_qualification;
+            if (fq != null && fq.trim().toUpperCase() !== "NO") qualified += 1;
           } catch (err) {
             const msg = err instanceof Error ? err.message : "Unknown error";
             // Never include the API key in error messages.

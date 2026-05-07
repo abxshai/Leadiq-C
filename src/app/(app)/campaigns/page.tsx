@@ -13,15 +13,25 @@ import { Badge } from "@/components/ui/badge";
 import { PageHeader } from "@/components/page-header";
 import { createServerSupabase } from "@/lib/supabase/server";
 
+// Counts come from the campaign_stats view (live aggregate over leads),
+// not the stored counters on campaigns — the stored values lag for legacy
+// data and miss categorical verdicts.
+export const dynamic = "force-dynamic";
+
 type CampaignRow = {
   id: string;
   name: string;
   status: "pending" | "running" | "completed" | "failed" | "canceled";
-  total_leads: number;
-  qualified_count: number;
-  failed_count: number;
   created_at: string;
   source_filename: string | null;
+};
+
+type Stats = {
+  campaign_id: string;
+  total_leads: number;
+  processed_count: number;
+  failed_count: number;
+  qualified_count: number;
 };
 
 const statusClasses: Record<CampaignRow["status"], string> = {
@@ -33,17 +43,30 @@ const statusClasses: Record<CampaignRow["status"], string> = {
   canceled: "border-muted-foreground/30 text-muted-foreground",
 };
 
+const ZERO_STATS: Omit<Stats, "campaign_id"> = {
+  total_leads: 0,
+  processed_count: 0,
+  failed_count: 0,
+  qualified_count: 0,
+};
+
 export default async function CampaignsPage() {
   const supabase = await createServerSupabase();
-  const { data: campaigns } = await supabase
-    .from("campaigns")
-    .select(
-      "id, name, status, total_leads, qualified_count, failed_count, created_at, source_filename"
-    )
-    .order("created_at", { ascending: false })
-    .limit(50);
+
+  const [{ data: campaigns }, { data: stats }] = await Promise.all([
+    supabase
+      .from("campaigns")
+      .select("id, name, status, created_at, source_filename")
+      .order("created_at", { ascending: false })
+      .limit(50),
+    supabase.from("campaign_stats").select("*"),
+  ]);
 
   const rows = (campaigns ?? []) as CampaignRow[];
+  const statsByCampaign = new Map<string, Stats>();
+  for (const s of (stats ?? []) as Stats[]) {
+    statsByCampaign.set(s.campaign_id, s);
+  }
 
   return (
     <div>
@@ -87,50 +110,53 @@ export default async function CampaignsPage() {
         </Card>
       ) : (
         <div className="grid gap-3">
-          {rows.map((c) => (
-            <div
-              key={c.id}
-              className="group flex items-center gap-4 rounded-lg border border-border/70 bg-card/40 px-5 py-4 hover:bg-card/70 transition-colors"
-            >
-              <Link
-                href={`/campaigns/${c.id}`}
-                className="flex flex-1 items-center gap-4 min-w-0"
+          {rows.map((c) => {
+            const s = statsByCampaign.get(c.id) ?? ZERO_STATS;
+            return (
+              <div
+                key={c.id}
+                className="group flex items-center gap-4 rounded-lg border border-border/70 bg-card/40 px-5 py-4 hover:bg-card/70 transition-colors"
               >
-                <div className="flex-1 min-w-0">
-                  <div className="flex items-center gap-2">
-                    <span className="font-medium truncate">{c.name}</span>
-                    <Badge
-                      variant="outline"
-                      className={statusClasses[c.status]}
-                    >
-                      {c.status}
-                    </Badge>
+                <Link
+                  href={`/campaigns/${c.id}`}
+                  className="flex flex-1 items-center gap-4 min-w-0"
+                >
+                  <div className="flex-1 min-w-0">
+                    <div className="flex items-center gap-2">
+                      <span className="font-medium truncate">{c.name}</span>
+                      <Badge
+                        variant="outline"
+                        className={statusClasses[c.status]}
+                      >
+                        {c.status}
+                      </Badge>
+                    </div>
+                    <div className="text-xs text-muted-foreground mt-0.5 truncate">
+                      {c.source_filename ?? "—"} ·{" "}
+                      {new Date(c.created_at).toLocaleString()}
+                    </div>
                   </div>
-                  <div className="text-xs text-muted-foreground mt-0.5 truncate">
-                    {c.source_filename ?? "—"} ·{" "}
-                    {new Date(c.created_at).toLocaleString()}
+                  <div className="hidden sm:flex items-center gap-6 text-sm tabular-nums">
+                    <Stat label="Total" value={s.total_leads} />
+                    <Stat
+                      label="Qualified"
+                      value={s.qualified_count}
+                      accent="text-primary"
+                    />
+                    <Stat
+                      label="Failed"
+                      value={s.failed_count}
+                      accent={
+                        s.failed_count > 0 ? "text-destructive" : undefined
+                      }
+                    />
                   </div>
-                </div>
-                <div className="hidden sm:flex items-center gap-6 text-sm tabular-nums">
-                  <Stat label="Total" value={c.total_leads} />
-                  <Stat
-                    label="Qualified"
-                    value={c.qualified_count}
-                    accent="text-primary"
-                  />
-                  <Stat
-                    label="Failed"
-                    value={c.failed_count}
-                    accent={
-                      c.failed_count > 0 ? "text-destructive" : undefined
-                    }
-                  />
-                </div>
-                <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-              </Link>
-              <DeleteCampaignButton id={c.id} name={c.name} />
-            </div>
-          ))}
+                  <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                </Link>
+                <DeleteCampaignButton id={c.id} name={c.name} />
+              </div>
+            );
+          })}
         </div>
       )}
     </div>

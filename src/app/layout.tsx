@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { Space_Mono } from "next/font/google";
+import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
 const spaceMono = Space_Mono({
@@ -28,9 +29,19 @@ export default function RootLayout({
   return (
     <html
       lang="en"
-      className={`dark ${spaceMono.variable} ${spaceMonoItalic.variable} h-full antialiased`}
+      suppressHydrationWarning
+      className={`${spaceMono.variable} ${spaceMonoItalic.variable} h-full antialiased`}
     >
-      <body className="min-h-full flex flex-col">{children}</body>
+      <body className="min-h-full flex flex-col">
+        <ThemeProvider
+          attribute="class"
+          defaultTheme="dark"
+          enableSystem={false}
+          disableTransitionOnChange
+        >
+          {children}
+        </ThemeProvider>
+      </body>
     </html>
   );
 }

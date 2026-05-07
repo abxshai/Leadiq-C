@@ -41,8 +41,6 @@ type Campaign = {
   name: string;
   status: "pending" | "running" | "completed" | "failed" | "canceled";
   total_leads: number;
-  qualified_count: number;
-  failed_count: number;
   model: string;
   concurrency: number;
   source_filename: string | null;
@@ -50,6 +48,15 @@ type Campaign = {
   started_at: string | null;
   completed_at: string | null;
   google_sheet_id: string | null;
+};
+
+type Stats = {
+  campaign_id: string;
+  total_leads: number;
+  touched_count: number;
+  processed_count: number;
+  failed_count: number;
+  qualified_count: number;
 };
 
 type Lead = {
@@ -87,15 +94,15 @@ const statusColor: Record<Campaign["status"], string> = {
 export function CampaignDetail({
   initialCampaign,
   initialLeads,
-  initialTouchedCount,
+  initialStats,
 }: {
   initialCampaign: Campaign;
   initialLeads: Lead[];
-  initialTouchedCount: number;
+  initialStats: Stats;
 }) {
   const [campaign, setCampaign] = useState(initialCampaign);
   const [leads, setLeads] = useState(initialLeads);
-  const [touchedCount, setTouchedCount] = useState(initialTouchedCount);
+  const [stats, setStats] = useState(initialStats);
   const [starting, setStarting] = useState(false);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
@@ -111,12 +118,13 @@ export function CampaignDetail({
     });
   }
 
-  // KPI counts come from server-side count queries (touchedCount), not
-  // from the in-memory `leads` array — that array is capped at 5000 for
-  // table rendering and would undercount on very large campaigns.
-  const processed = touchedCount;
-  const pct =
-    campaign.total_leads > 0 ? (processed / campaign.total_leads) * 100 : 0;
+  // KPI counts come from the campaign_stats view (live aggregate over
+  // leads with the `function_qualification IS NOT NULL AND != 'NO'`
+  // predicate). The in-memory `leads` array below is capped at 5000 for
+  // table rendering — these stats stay accurate past that cap.
+  const processed = stats.touched_count;
+  const totalLeads = Math.max(campaign.total_leads, stats.total_leads);
+  const pct = totalLeads > 0 ? (processed / totalLeads) * 100 : 0;
 
   const [refreshErr, setRefreshErr] = useState<string | null>(null);
 
@@ -125,12 +133,12 @@ export function CampaignDetail({
     const [
       { data: c, error: cErr },
       { data: l, error: lErr },
-      { count: touched, error: tErr },
+      { data: s, error: sErr },
     ] = await Promise.all([
       supabase
         .from("campaigns")
         .select(
-          "id, name, status, total_leads, qualified_count, failed_count, model, concurrency, source_filename, created_at, started_at, completed_at, google_sheet_id"
+          "id, name, status, total_leads, model, concurrency, source_filename, created_at, started_at, completed_at, google_sheet_id"
         )
         .eq("id", campaign.id)
         .single(),
@@ -141,12 +149,12 @@ export function CampaignDetail({
         .order("created_at", { ascending: true })
         .range(0, 4999),
       supabase
-        .from("leads")
-        .select("id", { count: "exact", head: true })
+        .from("campaign_stats")
+        .select("*")
         .eq("campaign_id", campaign.id)
-        .in("status", ["processed", "failed", "skipped"]),
+        .single(),
     ]);
-    const firstErr = cErr || lErr || tErr;
+    const firstErr = cErr || lErr || sErr;
     if (firstErr) {
       console.error("[campaign-detail] refresh error:", firstErr);
       setRefreshErr(firstErr.message);
@@ -155,7 +163,7 @@ export function CampaignDetail({
     setRefreshErr(null);
     if (c) setCampaign(c as Campaign);
     if (l) setLeads(l as Lead[]);
-    if (touched != null) setTouchedCount(touched);
+    if (s) setStats(s as Stats);
   }, [campaign.id]);
 
   // Poll while running.
@@ -298,9 +306,19 @@ export function CampaignDetail({
       <Card className="bg-card/40">
         <CardContent className="py-5 space-y-4">
           <div className="flex items-center gap-6 text-sm">
-            <Kpi label="Processed" value={`${processed} / ${campaign.total_leads}`} />
-            <Kpi label="Qualified" value={campaign.qualified_count} accent="text-primary" />
-            <Kpi label="Failed" value={campaign.failed_count} accent={campaign.failed_count > 0 ? "text-destructive" : undefined} />
+            <Kpi label="Processed" value={`${processed} / ${totalLeads}`} />
+            <Kpi
+              label="Qualified"
+              value={stats.qualified_count}
+              accent="text-primary"
+            />
+            <Kpi
+              label="Failed"
+              value={stats.failed_count}
+              accent={
+                stats.failed_count > 0 ? "text-destructive" : undefined
+              }
+            />
           </div>
           <Progress value={pct} />
         </CardContent>
@@ -374,16 +392,7 @@ export function CampaignDetail({
                       <LeadStatus status={l.status} error={l.error} />
                     </TableCell>
                     <TableCell>
-                      {l.function_qualification === "YES" ? (
-                        <span className="inline-flex items-center gap-1 text-emerald-400">
-                          <CheckCircle2 className="h-3.5 w-3.5" />
-                          YES
-                        </span>
-                      ) : l.function_qualification === "NO" ? (
-                        <span className="text-muted-foreground">NO</span>
-                      ) : (
-                        <span className="text-muted-foreground">—</span>
-                      )}
+                      <FunctionVerdict value={l.function_qualification} />
                     </TableCell>
                     <TableCell className="truncate max-w-[140px]">
                       {l.icp_qualification ?? (
@@ -504,6 +513,31 @@ function Kpi({
         {label}
       </div>
     </div>
+  );
+}
+
+function FunctionVerdict({ value }: { value: string | null }) {
+  if (value == null) return <span className="text-muted-foreground">—</span>;
+  const upper = value.trim().toUpperCase();
+  if (upper === "NO") return <span className="text-muted-foreground">NO</span>;
+  if (upper === "YES") {
+    return (
+      <span className="inline-flex items-center gap-1 text-emerald-400">
+        <CheckCircle2 className="h-3.5 w-3.5" />
+        YES
+      </span>
+    );
+  }
+  // Categorical verdict ("Decision Maker", "Influencer", "Champion", etc.) —
+  // show the literal value styled as qualified-positive.
+  return (
+    <span
+      className="inline-flex items-center gap-1 text-emerald-400 truncate max-w-[160px]"
+      title={value}
+    >
+      <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
+      <span className="truncate">{value}</span>
+    </span>
   );
 }
 

@@ -48,9 +48,70 @@
   --radius-4xl: calc(var(--radius) * 2.6);
 }
 
+/* ---------- Light theme (default) ---------- */
 :root {
+  color-scheme: light;
+
+  --page-bg: #f7f8fb;
+  --background: oklch(0.985 0.003 240);
+  --foreground: oklch(0.18 0.02 240);
+
+  --card: oklch(1 0 0 / 0.7);
+  --card-foreground: oklch(0.18 0.02 240);
+  --popover: oklch(0.99 0.002 240);
+  --popover-foreground: oklch(0.18 0.02 240);
+
+  --primary: oklch(0.6 0.17 237);
+  --primary-foreground: oklch(0.99 0 0);
+
+  --secondary: oklch(0.95 0.01 240);
+  --secondary-foreground: oklch(0.2 0.02 240);
+
+  --muted: oklch(0.95 0.01 240);
+  --muted-foreground: oklch(0.45 0.02 240);
+
+  --accent: oklch(0.93 0.04 237);
+  --accent-foreground: oklch(0.18 0.02 240);
+
+  --destructive: oklch(0.6 0.21 22.216);
+
+  --border: oklch(0.6 0.17 237 / 0.18);
+  --input: oklch(0.18 0.02 240 / 0.08);
+  --ring: oklch(0.6 0.17 237 / 0.6);
+
+  --chart-1: oklch(0.6 0.17 237);
+  --chart-2: oklch(0.7 0.13 210);
+  --chart-3: oklch(0.5 0.18 258);
+  --chart-4: oklch(0.78 0.05 240);
+  --chart-5: oklch(0.65 0.15 190);
+
+  --radius: 0.7rem;
+
+  --sidebar: oklch(0.97 0.005 240);
+  --sidebar-foreground: oklch(0.2 0.02 240);
+  --sidebar-primary: oklch(0.6 0.17 237);
+  --sidebar-primary-foreground: oklch(0.99 0 0);
+  --sidebar-accent: oklch(0.93 0.02 240);
+  --sidebar-accent-foreground: oklch(0.18 0.02 240);
+  --sidebar-border: oklch(0.6 0.17 237 / 0.16);
+  --sidebar-ring: oklch(0.6 0.17 237 / 0.6);
+
+  /* Decorative gradient stops + axis tick stroke (consumed by body::before
+     and chart components, swapped per-theme so the same component renders
+     correctly in both modes). */
+  --gradient-stop-1: oklch(0.6 0.17 237 / 0.16);
+  --gradient-stop-2: oklch(0.6 0.17 237 / 0.1);
+  --gradient-stop-3: oklch(0.6 0.17 237 / 0.06);
+  --gradient-stop-4: oklch(0.7 0.13 210 / 0.04);
+  --chart-axis: oklch(0.45 0.02 240);
+  --chart-grid: oklch(0.18 0.02 240 / 0.08);
+}
+
+/* ---------- Dark theme ---------- */
+.dark {
   color-scheme: dark;
 
+  --page-bg: #000;
   --background: oklch(0 0 0);
   --foreground: oklch(0.985 0 0);
 
@@ -83,8 +144,6 @@
   --chart-4: oklch(0.4 0.05 240);
   --chart-5: oklch(0.85 0.08 200);
 
-  --radius: 0.7rem;
-
   --sidebar: oklch(0.04 0.005 240);
   --sidebar-foreground: oklch(0.95 0 0);
   --sidebar-primary: oklch(0.685 0.169 237);
@@ -93,11 +152,18 @@
   --sidebar-accent-foreground: oklch(0.985 0 0);
   --sidebar-border: oklch(0.685 0.169 237 / 0.14);
   --sidebar-ring: oklch(0.685 0.169 237 / 0.6);
+
+  --gradient-stop-1: oklch(0.685 0.169 237 / 0.28);
+  --gradient-stop-2: oklch(0.685 0.169 237 / 0.18);
+  --gradient-stop-3: oklch(0.685 0.169 237 / 0.1);
+  --gradient-stop-4: oklch(0.78 0.13 210 / 0.06);
+  --chart-axis: oklch(0.68 0.02 240);
+  --chart-grid: oklch(1 0 0 / 0.08);
 }
 
 html,
 body {
-  background: #000;
+  background: var(--page-bg);
 }
 
 body {
@@ -110,14 +176,10 @@ body::before {
   position: fixed;
   inset: 0;
   background:
-    /* Top-left bloom, enlarged to cascade down behind the hero */
-    radial-gradient(ellipse 85% 75% at 8% -5%, oklch(0.685 0.169 237 / 0.28), transparent 65%),
-    /* Mid-left extension, carries the glow down to the login form */
-    radial-gradient(ellipse 55% 55% at -5% 55%, oklch(0.685 0.169 237 / 0.18), transparent 70%),
-    /* Soft bottom-right counterweight */
-    radial-gradient(ellipse 55% 45% at 100% 110%, oklch(0.685 0.169 237 / 0.1), transparent 60%),
-    /* Cyan highlight near the hero art */
-    radial-gradient(ellipse 40% 30% at 85% 20%, oklch(0.78 0.13 210 / 0.06), transparent 70%);
+    radial-gradient(ellipse 85% 75% at 8% -5%, var(--gradient-stop-1), transparent 65%),
+    radial-gradient(ellipse 55% 55% at -5% 55%, var(--gradient-stop-2), transparent 70%),
+    radial-gradient(ellipse 55% 45% at 100% 110%, var(--gradient-stop-3), transparent 60%),
+    radial-gradient(ellipse 40% 30% at 85% 20%, var(--gradient-stop-4), transparent 70%);
   pointer-events: none;
   z-index: 0;
 }
