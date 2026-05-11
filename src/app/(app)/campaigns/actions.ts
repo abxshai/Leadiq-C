@@ -76,20 +76,32 @@ export async function createCampaign(input: CreateCampaignInput) {
   // `(campaign_id, default_profile_url)` would atomically roll back the
   // entire chunk and abort the import partway through. ignoreDuplicates
   // makes that a silent skip instead of a hard fail.
+  //
+  // If any chunk fails mid-import the campaign row already exists but its
+  // total_leads claim doesn't match reality — an orphaned shell. Roll back
+  // by deleting the campaign before re-throwing so the user retries
+  // cleanly instead of being left with a corrupted row that the worker
+  // would later auto-mark as "completed" against zero leads (FK cascade
+  // on the leads table sweeps any partial inserts).
   const chunkSize = 500;
-  for (let i = 0; i < input.leads.length; i += chunkSize) {
-    const chunk = input.leads.slice(i, i + chunkSize).map((l) => ({
-      ...l,
-      campaign_id: campaign.id,
-      status: "pending" as const,
-    }));
-    const { error } = await supabase
-      .from("leads")
-      .upsert(chunk, {
-        onConflict: "campaign_id,default_profile_url",
-        ignoreDuplicates: true,
-      });
-    if (error) throw new Error(`Failed to insert leads: ${error.message}`);
+  try {
+    for (let i = 0; i < input.leads.length; i += chunkSize) {
+      const chunk = input.leads.slice(i, i + chunkSize).map((l) => ({
+        ...l,
+        campaign_id: campaign.id,
+        status: "pending" as const,
+      }));
+      const { error } = await supabase
+        .from("leads")
+        .upsert(chunk, {
+          onConflict: "campaign_id,default_profile_url",
+          ignoreDuplicates: true,
+        });
+      if (error) throw new Error(`Failed to insert leads: ${error.message}`);
+    }
+  } catch (err) {
+    await supabase.from("campaigns").delete().eq("id", campaign.id);
+    throw err;
   }
 
   redirect(`/campaigns/${campaign.id}`);

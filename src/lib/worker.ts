@@ -126,6 +126,34 @@ async function execute({
     if (data.length < PAGE_SIZE) break;
   }
 
+  // Orphan-campaign guard. If there's nothing pending/failed AND the
+  // campaign has zero rows in the leads table at all, it's an orphaned
+  // shell — almost always from a createCampaign that crashed mid-import
+  // and left the row behind with total_leads claiming N. Without this
+  // check the post-run gate sees zero leftover and flips status to
+  // "completed" against an empty campaign, which masks the real bug.
+  // A genuinely re-run-after-completion campaign has leads.length === 0
+  // here too, but its count(*) is > 0 — so we only fail loudly when both
+  // are zero.
+  if (leads.length === 0) {
+    const { count: anyLeads, error: anyErr } = await supabase
+      .from("leads")
+      .select("id", { count: "exact", head: true })
+      .eq("campaign_id", campaignId);
+    if (anyErr) {
+      await markFailed(supabase, campaignId, anyErr.message);
+      return;
+    }
+    if ((anyLeads ?? 0) === 0) {
+      await markFailed(
+        supabase,
+        campaignId,
+        "campaign has no lead rows — likely orphaned by a failed import. Delete and recreate."
+      );
+      return;
+    }
+  }
+
   const client = new OpenAI({ apiKey, baseURL: GROQ_BASE_URL });
   const limit = pLimit(Math.max(1, Math.min(20, campaign.concurrency)));
   const gate = createRateGate(Math.max(0, campaign.delay_ms ?? 0));

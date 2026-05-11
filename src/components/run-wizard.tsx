@@ -57,6 +57,7 @@ export function RunWizard({ templates }: { templates: Template[] }) {
   const [scrapeSource, setScrapeSource] = useState<string | null>(null);
   const [result, setResult] = useState<ParseResult | null>(null);
   const [parseErr, setParseErr] = useState<string | null>(null);
+  const [createErr, setCreateErr] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const defaultTemplate = useMemo(
@@ -130,20 +131,45 @@ export function RunWizard({ templates }: { templates: Template[] }) {
     name.trim().length > 0 &&
     (templateId !== "custom" || customPrompt.trim().length > 0);
 
+  // Server-action redirects throw with a digest like "NEXT_REDIRECT;..." —
+  // re-raise those so Next.js can navigate; absorb everything else into a
+  // visible banner. Without this, createCampaign failures (10 MB body
+  // limit, RLS, network blips) used to disappear silently and look like
+  // the platform had crashed.
+  function isRedirect(err: unknown): boolean {
+    return (
+      typeof err === "object" &&
+      err !== null &&
+      "digest" in err &&
+      typeof (err as { digest: unknown }).digest === "string" &&
+      (err as { digest: string }).digest.startsWith("NEXT_REDIRECT")
+    );
+  }
+
   function onCreate() {
     if (!result) return;
+    setCreateErr(null);
     startTransition(async () => {
-      await createCampaign({
-        name: name.trim(),
-        source_filename: file?.name ?? scrapeSource ?? null,
-        prompt_template_id: templateId === "custom" ? null : templateId,
-        system_prompt_override:
-          templateId === "custom" ? customPrompt.trim() : null,
-        concurrency,
-        delay_ms: delayMs,
-        google_sheet_id: sheetId.trim() || null,
-        leads: result.leads as ParsedLead[],
-      });
+      try {
+        await createCampaign({
+          name: name.trim(),
+          source_filename: file?.name ?? scrapeSource ?? null,
+          prompt_template_id: templateId === "custom" ? null : templateId,
+          system_prompt_override:
+            templateId === "custom" ? customPrompt.trim() : null,
+          concurrency,
+          delay_ms: delayMs,
+          google_sheet_id: sheetId.trim() || null,
+          leads: result.leads as ParsedLead[],
+        });
+      } catch (err) {
+        if (isRedirect(err)) throw err;
+        setCreateErr(
+          err instanceof Error
+            ? err.message
+            : "Failed to create campaign. Check your file size or retry."
+        );
+      }
     });
   }
 
@@ -388,6 +414,13 @@ export function RunWizard({ templates }: { templates: Template[] }) {
             />
 
             <Separator className="my-2" />
+
+            {createErr ? (
+              <div className="flex items-start gap-2 rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+                <CircleAlert className="mt-0.5 h-4 w-4 shrink-0" />
+                <span className="break-words">{createErr}</span>
+              </div>
+            ) : null}
 
             <div className="flex justify-between">
               <Button variant="ghost" onClick={() => setStep(2)}>
