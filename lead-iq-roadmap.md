@@ -4,7 +4,7 @@ Living doc of what's shipped, what's queued, and what's parked. Update
 it every time something lands or a new request comes in. Keep sections
 short.
 
-*Last updated: 2026-05-07*
+*Last updated: 2026-05-11*
 
 ---
 
@@ -20,35 +20,25 @@ short.
 
 ## Next up (active milestones)
 
-### M3 — Dynamic analytics + prompt templates CRUD
+### M3.5 — Leads drilldown + analytics deep-links
 
-**Why:** Analytics is currently a fixed 30-day window on hard-coded predicates that pre-date the categorical relaxation — `qualified` is still `function_qualification === "YES"` so any custom-prompt run shows 0 qualified, and there's no way to slice by template, campaign, or date range. Prompt templates are still SQL-only to edit; teammates can't iterate on ICPs without engineering involvement.
+**Why:** Analytics now slices qualified leads by business unit / ICP / company / campaign, but there's no way to follow a slice down to the actual lead rows that make it up. The next product step is `/leads` — a view-only cross-campaign lead browser whose filter state comes from URL params, so clicking a chart slice in `/analytics` becomes a deep-link.
 
-**Blocks:** these two ship together because the analytics filters need a stable list of templates to filter on, and CRUD on templates makes the filter useful.
+**To build:**
+- [ ] New `/leads` route — paginated lead list joined to `campaigns!inner` (filters orphans, surfaces campaign name)
+- [ ] Six-column table: **Name · Function · Domain · Seniority · ICP · LinkedIn** (campaign attribution shows as a subtitle under Name, not a 7th column — locked decision, see `user_memory/project_lead_iq_leads_view_schema.md`)
+- [ ] Filter bar mirroring `/analytics` (time range, campaign, business unit, ICP, company), state driven by URL params (`/leads?range=30d&bu=Robotics&company=Acme`)
+- [ ] Analytics bar/area charts become clickable — click a business-unit bar → `/leads?bu=<value>` etc.
+- [ ] Inline expand rows for prose (function reasoning, etc.) — same UX as the campaign-detail table
+- [ ] CSV export of the filtered set (All / Qualified-only)
 
-**To build — analytics:**
-- [ ] Predicate switch: `qualified` becomes `function_qualification IS NOT NULL AND != 'NO'` everywhere it's currently `=== "YES"` (analytics page + worker `qualified_count` increment + campaigns-list display). Legacy YES/NO data still counts; categorical verdicts now count too.
-- [ ] Date-range filter (last 7 / 30 / 90 days, custom range)
-- [ ] Template multi-select filter (drives all KPIs + charts)
-- [ ] Per-campaign drilldown (link from campaigns list → analytics filtered to that campaign)
-- [ ] Domain-distribution chart — stacked bar of qualified leads by `domain_classification`. Column exists since 2026-04-30, just needs wiring.
-- [ ] Function-qualification distribution chart — replaces the binary qualified-vs-not chart with a top-N category breakdown so categorical prompts ("Decision Maker", "Champion", etc.) are visible.
-- [ ] Token-spend card — sum of `llm_prompt_tokens + llm_completion_tokens` filtered by current selection, with a rough $ estimate.
+**Open questions:**
+1. Free-text search by name / company / title — add now or defer? I lean add (cheap, high utility).
+2. Does the time-series area chart's click drill into a per-day filtered view, or just to the bucket's underlying leads? Lean per-bucket → `/leads?range=custom&from=...&to=...`.
 
-**To build — prompt CRUD:**
-- [ ] `/templates/new` page — form: name, description, system_prompt textarea, is_default toggle
-- [ ] `/templates/[id]` edit page — same form, pre-filled. Save bumps `version` and appends to `prompt_template_versions` (schema already supports this).
-- [ ] Duplicate action on template cards → opens `/templates/new` with "Copy of X" pre-filled
-- [ ] Archive (not delete) — sets `archived_at`, hides from wizard picker, keeps old campaign snapshots valid (the prompt-snapshot-is-sacred principle from DOCS §9 holds)
-- [ ] Version history drawer with "Restore this version" action
+**Out of scope for v1:** action buttons on lead rows (re-run, push to Clay, edit). `/leads` stays view-only — actions live on `/campaigns/[id]` until proven otherwise.
 
-**Open questions for you:**
-1. **Default time window** — last 30 days, or "all time" once filters land? I lean 30 days as default with a "clear filter" button to see all-time.
-2. **Domain chart** — current `domain_classification` is free-form text so a stacked bar might show a long tail. Top-N (say top 6 + "Other") or full list? I lean top-6.
-3. **Edit rights for templates** — anyone signed in can edit every template (matches current RLS for the 5-person team), or do we scope editing to whoever created it? I lean "anyone edits, history preserved".
-4. **Token-spend card** — drop it from M3 if the answer to "do we care about cost yet?" is "not really". Easy to pull out.
-
-**Estimate:** 8–10 hours total (5–6h analytics, 3–4h CRUD).
+**Estimate:** 4–5 hours.
 
 ---
 
@@ -80,6 +70,8 @@ short.
 On the radar, not committed. Promote when a real trigger appears.
 
 **Product**
+- [ ] **Analytics performance — push aggregations to SQL once data warrants.** Today `/analytics` fetches every processed + failed lead across all campaigns and filters in-memory. Works fine for ~3k leads (current scale); will be visibly slow ~50k, will timeout ~200k. Right fix when needed: pre-aggregated SQL views / RPC that return bucketed series and per-(bu/ICP/company/campaign) counts with the filter set passed as params. Two cheap intermediate wins if scale demands: cap the server fetch to the active time range (server-side `processed_at >= cutoff`), and drop columns we don't visualize.
+- [ ] **BI offload (Looker Studio / Metabase) — deferred.** Decision 2026-05-08: keep in-app analytics for now. BI tools are great for analytical / cross-source rollups but bad for operational drilldowns (read-only, no action buttons, Looker's 12-min cache TTL kills real-time). Right shape when Smartlead / HubSpot integrations land: per-source SQL views shaped like `campaign_stats`, then point Metabase/Looker at those views for exec / cross-source reports while keeping operational dashboards in-app. The view layer (which we're already building) is the unified data contract — zero migration cost when the time comes.
 - [ ] Scrape history — persist each fetched PB run to a `scrapes` table (sales nav URL, agent, row count, pushed-to-campaign IDs) so teammates can see what's been pulled without re-fetching. Today each fetch re-downloads from PB on demand.
 - [ ] Native phantom launching from Lead-IQ — revisit the original phantomintegration.md spec (`/agents/save` + `/agents/launch` + cookie BYOK + mutex) if GTM wants "click and scrape" without PB's UI. Deferred; current fetch-only flow covers the need.
 - [ ] Google Sheets push — service-account auth, batched `values.append`. Sheet ID field already exists on campaigns. Was originally M4; Clay took priority.
@@ -111,6 +103,15 @@ On the radar, not committed. Promote when a real trigger appears.
 ---
 
 ## Shipped
+
+**2026-05-08**
+- [x] **Prompt templates CRUD shipped.** `/templates` list (active + archived), `/templates/new` form, `/templates/[id]` edit page with side-panel version history. Server actions: create, update, archive, unarchive, duplicate, setDefault, restoreVersion. Editing `system_prompt` or `name` bumps `version` and appends to `prompt_template_versions`; description / default-toggle alone don't bump. `setDefault` clears any prior default first (two-statement race window acceptable at 5-person scale, per DOCS §7). Slug auto-derived from name with random-suffix retry on unique-violation; frozen after create. Snapshot contract verified intact end-to-end: wizard fetches `archived_at IS NULL`, `createCampaign` snapshots `system_prompt + version` into the campaign row at run time, and the worker reads `system_prompt_snapshot` (never re-fetches the template) — edits / restores / archives cannot retroactively change historical campaign behavior.
+
+**2026-05-07**
+- [x] **`campaign_stats` SQL view — live aggregate counts per campaign.** Migration `0004_campaign_stats_view.sql` (apply via Supabase SQL editor, project convention). `total_leads`, `touched_count`, `processed_count`, `failed_count`, and `qualified_count` are computed live from the leads table using the `function_qualification IS NOT NULL AND upper(btrim(...)) <> 'NO'` predicate — same predicate as analytics, so categorical verdicts and legacy YES count uniformly without any backfill. `security_invoker = true` so the view honors RLS on the underlying tables. Campaigns list, campaign detail page, and detail polling all read from the view; `campaigns.qualified_count` / `failed_count` columns are no longer surfaced (worker still writes them but nothing reads them — slight tech debt). Fixed the 3386-lead campaign showing "0 / 0" because legacy stored counters missed the categorical verdicts.
+- [x] **Analytics rewritten — dynamic, filterable, drops deleted-campaign data.** Server fetch uses `campaigns!inner(...)` so any orphaned lead from a deleted campaign automatically drops out (defense-in-depth on top of FK cascade). `force-dynamic` so deletes / new runs are reflected immediately. Pagination handles ≥1k row datasets past the PostgREST default. Client dashboard with filters: time range (7d / 30d / 90d / All), bucket (day / week / month), and multi-select dropdowns for campaign, business unit (`domain_classification`), ICP, company — all compose in-memory. KPI cards: qualified, qualification rate, processed, avg seniority, active campaigns, failed. Charts: time-series area (qualified vs not), per business unit bar, per ICP bar, per company top-10 bar, per campaign top-12 bar. Predicate switch landed everywhere (`!= 'NO'` instead of `=== "YES"`) — worker `qualified_count` increment matches.
+- [x] **Categorical verdict display in the lead table.** Campaign-detail "Qualified" column previously hard-coded to YES / NO / — and silently hid categorical prompts like "Decision Maker". Now renders the literal value with the qualified-positive styling for anything not explicitly "NO".
+- [x] **Light / dark theme toggle.** `next-themes` was a dep but wasn't wired — `ThemeProvider` in root layout, light tokens added alongside the dark in `globals.css` (gradient stops + chart axis/grid swap by class), Sun / Moon button in the app header. Default = dark, no system flicker, login screen stays dark-locked.
 
 **2026-05-04**
 - [x] **Groq 400 "Parsing failed" retry.** Server-side JSON-mode failures (HTTP 400 with `failed_generation`) used to bubble straight to the lead's `failed` row — the existing Zod retry only sees responses that returned 200. Worker now catches `BadRequestError` around the first Groq call, pulls `failed_generation` defensively from either `err.error.error.failed_generation` or `err.error.failed_generation` (gated on `status === 400` so unrelated errors with similarly-named fields don't trigger a retry), and feeds it into the same retry path the schema-mismatch case uses (assistant turn = malformed text, user turn = "rejected, return valid JSON"). Retry budget unchanged (still 1). Other 4xx/5xx still rethrow as before.

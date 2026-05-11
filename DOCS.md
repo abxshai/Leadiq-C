@@ -1,6 +1,6 @@
 # Lead-IQ — Product & Architecture Documentation
 
-*Last updated: 2026-05-07*
+*Last updated: 2026-05-11*
 
 Lead-IQ is an internal self-serve tool at Deccan AI that qualifies
 LinkedIn leads against a target Ideal Customer Profile (ICP) using a
@@ -85,14 +85,35 @@ with its status, qualification verdict, seniority score, priority
 level, and a direct link back to the LinkedIn profile. Export CSV
 whenever you want, or delete the campaign with a confirmation dialog.
 
-**(e) Analytics — the monthly recap.** KPI cards (leads processed,
-qualified, qualification rate, avg seniority, campaigns this month,
-failed), a stacked-area chart of qualified vs. not-qualified per day
-over 30 days, a horizontal bar chart of the top product areas among
-qualified leads, and a seniority distribution bar chart.
+**(e) Analytics — qualified leads across every campaign, filterable.**
+Filter bar at the top: time range (7d / 30d / 90d / All), bucket (day
+/ week / month), plus multi-select dropdowns for campaign, business
+unit (`domain_classification`), ICP qualification, and company. Every
+filter composes — KPI cards (qualified, qualification rate, processed,
+avg seniority, active campaigns, failed), the time-series area chart,
+and the four breakdown bar charts (per business unit, per ICP, per
+company top-10, per campaign top-12) all recompute from the same
+filter set. The server-side query inner-joins on `campaigns!inner` so
+any orphaned lead from a deleted campaign drops out automatically;
+`force-dynamic` means deletes and new runs reflect immediately, no
+stale cache.
 
-**(f) Templates and Settings** — placeholders for the roadmap work
-(versioned prompt CRUD, Google Sheets setup).
+**(f) Templates — full CRUD with version history.** `/templates`
+lists every prompt template (active and archived) with default and
+archived badges, the current version number, and a per-card action
+menu (Make default · Duplicate · Archive / Unarchive). `/templates/new`
+and `/templates/[id]` share one form (name, description, system
+prompt, default toggle); the edit page also shows a side panel
+listing every prior version with a Restore action. Editing the system
+prompt or name bumps the version and appends to
+`prompt_template_versions`; description / default-toggle alone don't
+bump. Restoring an old version goes through the same update path,
+bumping to a new version pointing at the restored content. Past
+campaigns keep their `system_prompt_snapshot` untouched — nothing
+historical ever changes.
+
+**(g) Settings** — placeholder for future workspace-level config
+(default Clay URL when M4 lands, etc.).
 
 ---
 
@@ -161,6 +182,36 @@ qualified leads, and a seniority distribution bar chart.
 - **Rate-limit-aware.** A per-campaign `delay_ms` plus a global
   min-interval gate ensures at most one Groq call starts per
   `delay_ms` regardless of how many concurrent workers are running.
+- **Live campaign counts via `campaign_stats` view.** Total, processed,
+  failed, and qualified counts are computed live from the leads table
+  per campaign — the campaigns list, campaign detail KPIs, and the
+  detail-page polling all read from this view. Predicate is
+  `function_qualification IS NOT NULL AND upper(btrim(...)) <> 'NO'`,
+  same as analytics, so categorical verdicts and legacy YES count
+  uniformly without any backfill. `security_invoker = true` so RLS on
+  the underlying tables still applies. The `campaigns.qualified_count` /
+  `failed_count` stored columns are no longer surfaced — the worker
+  still writes them on completion, but every read goes through the
+  view, so stale or never-set counters no longer mislead the UI.
+- **Filterable analytics.** Time range (7d / 30d / 90d / All), bucket
+  (day / week / month), and multi-select filters for campaign, business
+  unit, ICP, and company. The orphaned-lead defense via
+  `campaigns!inner` plus `force-dynamic` rendering means a deleted
+  campaign's leads can never reflect in the totals, even if FK cascade
+  ever fails.
+- **Prompt templates CRUD with version history.** Full self-serve
+  template management — create, edit, duplicate, archive / unarchive,
+  set default, restore from any prior version. Editing bumps `version`
+  and appends to `prompt_template_versions`. The snapshot principle is
+  preserved end-to-end: the wizard fetches non-archived templates,
+  `createCampaign` snapshots `system_prompt + version` into the
+  campaign row at run time, and the worker reads
+  `campaigns.system_prompt_snapshot` — never re-fetches the template.
+  Edits and restores cannot retroactively change historical behavior.
+- **Light / dark theme toggle.** `next-themes` wired into the root
+  layout with light tokens defined alongside the dark in `globals.css`;
+  the toggle lives in the app header. Default is dark; the login screen
+  stays dark-locked.
 - **Campaign analytics.** Qualification rates, seniority distribution,
   per-product-area breakdowns — all pulling directly from Supabase
   with no pre-aggregation job.
@@ -220,7 +271,8 @@ qualified leads, and a seniority distribution bar chart.
                                           │
                                   campaigns, leads,
                                   prompt_templates,
-                                  prompt_template_versions
+                                  prompt_template_versions,
+                                  campaign_stats (view)
                                           │
                     ┌─────────────────────┴──────────────────────┐
                     │ Worker (spawned by POST …/run)             │
@@ -307,8 +359,19 @@ Groq openai/gpt-oss-120b (JSON mode)
 
 **Shipped:**
 - Full campaign creation → run → export loop with rerun-failed support
-- Analytics dashboard with live data (static cards, fixed time window —
-  next milestone makes it dynamic)
+- **Filterable analytics dashboard** — time / bucket / campaign /
+  business unit / ICP / company filters, KPI cards, time-series area
+  chart, and four breakdown bar charts; `force-dynamic` rendering plus
+  `campaigns!inner` join means deleted campaigns can't show up in totals
+- **Live campaign counts via the `campaign_stats` SQL view** — the
+  campaigns list, campaign detail, and detail polling all read live
+  aggregates instead of the stored counters; categorical verdicts and
+  legacy YES count uniformly via a single predicate
+- **Prompt templates CRUD with version history** — full self-serve
+  template management with restore-from-version; snapshot principle
+  preserved end-to-end
+- **Light / dark theme toggle** — `next-themes` wired in the root
+  layout, toggle in the app header
 - Delete with confirmation
 - Rate-limit-aware worker; paginated lead SELECT (handles ≥1k campaigns
   past PostgREST's row cap); post-run completion gate that flips the
@@ -350,15 +413,21 @@ Groq openai/gpt-oss-120b (JSON mode)
 - Space Mono + ASCII hero login page; password-based shared auth
 
 **Not yet shipped (roadmap):**
-- **Analytics revamp — dynamic filters + cards** *(next milestone)* —
-  date range, per-template + per-campaign filtering, qualified-rate
-  re-defined as `function_qualification != 'NO'` (works for legacy
-  YES/NO and categorical alike), domain-distribution chart added.
-- **Prompt templates CRUD UI** *(next milestone)* — currently the two
-  seeded templates are read-only in the UI; editing/duplicating/
-  archiving requires SQL.
-- **Clay webhook push** — qualified leads pushed to Clay for outreach;
-  M4 in the roadmap once M3 lands. Pre-empted Google Sheets push.
+- **`/leads` view-only page + analytics drilldown deep-links** *(next
+  milestone, M3.5)* — cross-campaign lead browser, six-column schema
+  (Name · Function · Domain · Seniority · ICP · LinkedIn) with campaign
+  attribution as a subtitle under Name; filter bar mirrors `/analytics`
+  via URL params so chart slices become shareable deep-links.
+- **Clay webhook push** *(M4)* — qualified leads pushed to Clay for
+  outreach. Pre-empted Google Sheets push.
+- **Analytics scale fix** — today the page fetches every processed lead
+  across all campaigns and filters in-memory; will be visibly slow past
+  ~50k leads. Right fix: pre-aggregated SQL views or RPC with the
+  filter set passed as params. Defer until volume actually warrants.
+- **BI offload (Looker Studio / Metabase)** — deferred until Smartlead /
+  HubSpot integrations land. Plan: SQL views per source, shaped like
+  `campaign_stats`, then point a BI tool at those views for exec /
+  cross-source reports while operational dashboards stay in-app.
 - **Scheduled / cron runs** — today everything is user-triggered.
 - **Multi-tenant** — single-workspace mode for now, by choice.
 
