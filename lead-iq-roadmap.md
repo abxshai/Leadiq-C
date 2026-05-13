@@ -4,7 +4,7 @@ Living doc of what's shipped, what's queued, and what's parked. Update
 it every time something lands or a new request comes in. Keep sections
 short.
 
-*Last updated: 2026-05-11*
+*Last updated: 2026-05-13*
 
 ---
 
@@ -85,7 +85,7 @@ On the radar, not committed. Promote when a real trigger appears.
 - [ ] Token spend meter — sum `llm_prompt_tokens + llm_completion_tokens` per campaign, estimate $ cost.
 
 **Developer experience**
-- [ ] Zombie-campaign auto-reset on server boot. Deferred — operator discipline + coordinated deploys neutralize this at current scale.
+- [x] ~~Zombie-campaign auto-reset on server boot.~~ Shipped 2026-05-09 via `instrumentation.ts`.
 - [x] ~~Update `README.md` — still references magic-link auth.~~ Shipped 2026-04-23 as part of the docs refresh.
 - [ ] Move hard-coded shared email `team@lead-iq.local` to an env var.
 - [ ] Chunked route handler for createCampaign — current 10 MB Server Action body limit covers ~2k row campaigns; switching to a streaming/chunked route handler would scale arbitrarily and unlock proper progress feedback for huge uploads.
@@ -103,6 +103,13 @@ On the radar, not committed. Promote when a real trigger appears.
 ---
 
 ## Shipped
+
+**2026-05-09**
+- [x] **Zombie-campaign auto-reset on server boot.** `instrumentation.ts` (Next 16's once-per-boot hook) flips any `leads.status='running'` back to `pending` and any `campaigns.status='running'` to `canceled` on startup. Promoted from backlog after a Railway redeploy mid-run left campaign `aa9dd37d` stuck at 147 processed leads with no worker behind it. The route guard already accepts `canceled` for resume, so users just click Resume after the deploy completes — no SQL needed. Skips Edge runtime, build phase, and dev without a service-role key. Boot log lines surface counts: `[instrumentation] reset N zombie lead(s) ...`.
+- [x] **Ingest — strip NUL bytes (U+0000) at parse time.** Phantombuster summary fields occasionally carry stray NUL chars from upstream scraping artifacts; Postgres' JSON parser rejects ` ` escapes when PostgREST serializes the INSERT, atomically failing the chunk with `Failed to insert leads: unsupported Unicode escape sequence`. `lead-parser.ts:str()` now strips NULs before trimming, covering both CSV and JSON ingest paths (regex built via `String.fromCharCode(0)` to keep the source itself NUL-free).
+- [x] **Atomic campaign creation — rollback orphans on lead-insert failure.** `createCampaign` was non-atomic: it inserted the campaign row, then chunk-inserted leads; if any chunk failed, the campaign row stayed behind with `total_leads = N` and zero (or partial) actual lead rows. Worker would later silently mark these orphans as "completed". Now wraps the insert loop in try/catch and deletes the campaign row before re-throwing. FK cascade sweeps any partial inserts.
+- [x] **Worker — orphan-campaign guard.** After pagination returns zero pending/failed leads, the worker now does a `count(*)` over all statuses. If it's still zero, marks failed with `campaign has no lead rows — likely orphaned by a failed import. Delete and recreate.` Genuinely-re-run-after-completion campaigns (which also have zero pending) have a non-zero total count, so the guard only fires on real orphans.
+- [x] **Wizard — surface server-action errors in a banner.** `onCreate` used to await `createCampaign` inside `startTransition` with no try/catch; 10 MB body-limit hits, RLS errors, and network blips all disappeared silently and looked like a platform crash. Now catches non-redirect errors and renders them in a red banner next to the Create button.
 
 **2026-05-08**
 - [x] **Prompt templates CRUD shipped.** `/templates` list (active + archived), `/templates/new` form, `/templates/[id]` edit page with side-panel version history. Server actions: create, update, archive, unarchive, duplicate, setDefault, restoreVersion. Editing `system_prompt` or `name` bumps `version` and appends to `prompt_template_versions`; description / default-toggle alone don't bump. `setDefault` clears any prior default first (two-statement race window acceptable at 5-person scale, per DOCS §7). Slug auto-derived from name with random-suffix retry on unique-violation; frozen after create. Snapshot contract verified intact end-to-end: wizard fetches `archived_at IS NULL`, `createCampaign` snapshots `system_prompt + version` into the campaign row at run time, and the worker reads `system_prompt_snapshot` (never re-fetches the template) — edits / restores / archives cannot retroactively change historical campaign behavior.

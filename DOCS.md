@@ -1,6 +1,6 @@
 # Lead-IQ — Product & Architecture Documentation
 
-*Last updated: 2026-05-11*
+*Last updated: 2026-05-13*
 
 Lead-IQ is an internal self-serve tool at Deccan AI that qualifies
 LinkedIn leads against a target Ideal Customer Profile (ICP) using a
@@ -372,6 +372,23 @@ Groq openai/gpt-oss-120b (JSON mode)
   preserved end-to-end
 - **Light / dark theme toggle** — `next-themes` wired in the root
   layout, toggle in the app header
+- **Atomic campaign creation + orphan guard end-to-end.** If any chunk
+  INSERT fails, `createCampaign` rolls back by deleting the campaign
+  row before re-throwing; if an orphan ever slips through, the worker
+  detects it post-pagination and marks `failed` with a clear reason
+  instead of silently completing.
+- **Zombie-campaign auto-reset on server boot** via Next 16's
+  `instrumentation.ts` — Railway redeploys mid-run no longer strand
+  campaigns in `running`. On every boot, running leads flip to pending
+  and running campaigns flip to `canceled` (resumable). User clicks
+  Resume; no SQL needed.
+- **Ingest scrubs NUL bytes** at parse time — Phantombuster summary
+  fields occasionally carry stray `U+0000` chars; Postgres' JSON parser
+  rejects those, failing the INSERT chunk. Stripped before INSERT to
+  protect both CSV and JSON ingest.
+- **Visible wizard errors.** Server-action failures during campaign
+  create now render in a red banner instead of silently failing — body
+  limit, RLS, and network errors are all explicit.
 - Delete with confirmation
 - Rate-limit-aware worker; paginated lead SELECT (handles ≥1k campaigns
   past PostgREST's row cap); post-run completion gate that flips the
@@ -432,11 +449,18 @@ Groq openai/gpt-oss-120b (JSON mode)
 - **Multi-tenant** — single-workspace mode for now, by choice.
 
 **Known limitations:**
-- A server restart while a campaign is running abandons the run (the
-  worker is in-process, not persisted). Mitigation: SQL flip campaign
-  back to `failed` and any leads from `running → pending`, then click
-  Resume. The "Zombie-campaign auto-reset on server boot" backlog item
-  would automate this.
+- A server restart while a campaign is running abandons the in-process
+  worker — but the campaign is no longer stuck visibly: `instrumentation.ts`
+  flips zombies to `canceled` (resumable) on the next boot. User just
+  clicks Resume after the deploy. The actual progress in flight at the
+  moment of restart is lost (model calls for the affected leads need to
+  re-run); the leads themselves are not corrupted, just flipped back to
+  pending.
+- Server Action body limit is 10 MB. Comfortably handles ~2k row
+  campaigns once profile summaries are included. Past that, push to
+  Campaign / manual upload will 413 and the new wizard error banner
+  will surface it. A chunked route handler is the right fix when scale
+  warrants — see roadmap backlog.
 - Phantombuster Sales Nav phantoms cap around ~1000 rows per run by
   default. If you need more, split the search into multiple narrower
   phantoms and concat the CSVs (Lead-IQ dedupes on ingest).
@@ -473,3 +497,95 @@ Groq openai/gpt-oss-120b (JSON mode)
 - **Host:** Railway
 - **Deploy guide:** [`DEPLOY.md`](./DEPLOY.md)
 - **Developer setup:** [`README.md`](./README.md)
+
+---
+
+## 11. UI / design tokens
+
+Snapshot of what the surface uses today — the visual identity is up for a
+refresh, so this section is also the inventory of what's getting touched.
+
+### Libraries
+
+| Layer | Choice | Where it shows up |
+|---|---|---|
+| Component primitives | **`@base-ui/react`** | The headless layer under shadcn/ui — `Menu`, `Dialog`, `Select`, `Tooltip`, `AlertDialog`, `Tabs`, etc. Replaces the Radix layer most shadcn examples assume. |
+| Component layer | **shadcn/ui (Base-UI variant)** | Everything in `src/components/ui/*.tsx`. Owned, copy-paste components — not a runtime dependency. |
+| Styling | **Tailwind v4** (PostCSS pipeline) | `globals.css` declares `@theme inline` and CSS variables; components consume via utility classes. |
+| Tailwind extras | **`tw-animate-css`** | Enter/exit/animation utilities (`animate-in`, `fade-in-0`, `zoom-in-95`) used on menus + dialogs. |
+| Theme switching | **`next-themes`** | `ThemeProvider` in root layout; toggle in the app header (Sun/Moon). Default = dark, light is the alternate, `enableSystem={false}` so the login screen stays dark-locked. |
+| Charts | **Recharts** via shadcn `Chart` wrapper | `src/components/ui/chart.tsx` injects `--color-{key}` CSS vars so chart series colors track the active theme. Used on `/analytics`. |
+| Icons | **`lucide-react`** | `Play`, `Trash2`, `ChevronDown`, `Loader2`, `Plus`, etc. Sized via `[&_svg:not([class*='size-'])]:size-4` in the button variants. |
+| Toasts | **`sonner`** (themed via next-themes) | Wired in `src/components/ui/sonner.tsx`. Not actively surfaced yet — toast notifications are a roadmap polish item. |
+| Forms | **react-dropzone** (CSV upload) + native HTML form validation | No `react-hook-form` / `zod-form` layer; controlled-input + server-action pattern in templates + wizard. |
+| Server state | Direct **`@supabase/supabase-js`** (server + browser variants) | No `swr` / `tanstack-query` — small surface, server components handle most reads. |
+
+### Fonts
+
+- **Sans + mono:** **Space Mono** (Google Fonts, weights 400 + 700, latin subset). The same family is bound to both `--font-sans` and `--font-mono` — every text surface in the app is monospace by intent. Loaded via `next/font/google` in `src/app/layout.tsx`.
+- The `font-heading` token aliases to `--font-sans`, so headings are also Space Mono.
+
+### Theme — color tokens
+
+Both themes are declared in `src/app/globals.css`. Colors are in OKLCH so
+hue / chroma stay coherent across alpha variants. The light theme is the
+`:root` selector; the dark theme is the `.dark` class (toggled by
+next-themes on `<html>`).
+
+| Token | Light | Dark | Notes |
+|---|---|---|---|
+| `--page-bg` | `#f7f8fb` (pale blue-gray) | `#000` | Drawn behind the gradient overlay. |
+| `--background` | `oklch(0.985 0.003 240)` | `oklch(0 0 0)` | Canvas; cards/popovers layer on top with translucent fill. |
+| `--foreground` | `oklch(0.18 0.02 240)` | `oklch(0.985 0 0)` | Body text. |
+| `--primary` | `oklch(0.6 0.17 237)` | `oklch(0.685 0.169 237)` | **Sky-blue** — the brand accent. Buttons, focus rings, qualified badges, primary chart series. |
+| `--primary-foreground` | `oklch(0.99 0 0)` | `oklch(0.12 0.02 240)` | Text on primary surfaces. |
+| `--card` | `oklch(1 0 0 / 0.7)` | `oklch(0.14 0.01 240 / 0.6)` | Translucent so the gradient overlay shows through. |
+| `--muted` / `--muted-foreground` | `oklch(0.95 0.01 240)` / `oklch(0.45 0.02 240)` | `oklch(0.2 0.01 240)` / `oklch(0.68 0.02 240)` | Secondary text + filled inputs. |
+| `--accent` | `oklch(0.93 0.04 237)` | `oklch(0.24 0.04 237)` | Hover/focus surfaces. |
+| `--destructive` | `oklch(0.6 0.21 22.216)` | `oklch(0.704 0.191 22.216)` | Errors, delete buttons. |
+| `--border` | `oklch(0.6 0.17 237 / 0.18)` | `oklch(0.685 0.169 237 / 0.18)` | Sky-tinted borders by default. |
+| `--ring` | `oklch(0.6 0.17 237 / 0.6)` | `oklch(0.685 0.169 237 / 0.6)` | Focus ring. |
+| `--radius` | `0.7rem` (shared) | — | Cards/menus inherit; `--radius-sm/md/lg/xl/...` are derived. |
+
+**Chart series tokens** (`--chart-1` … `--chart-5`) hold the qualified-vs-not areas, top-N bars, etc. — all in the sky-blue family with widening hue offsets so multi-series breakdowns stay readable in both themes. shadcn's `ChartContainer` re-emits these as `--color-{key}` per-chart so series colors track the theme automatically.
+
+**Sidebar** has its own `--sidebar-*` token family with sky-blue tinted borders + a darker fill than the main canvas. Set in both themes.
+
+### The gradient overlay
+
+`body::before` is a fixed-position decorative layer made of four radial
+gradients, all sky-blue based. Stops are themed via `--gradient-stop-1` …
+`--gradient-stop-4` so the overlay reads correctly in both modes (dark uses
+~28% alpha, light uses ~16% alpha to stay subtle):
+
+- Top-left bloom (`8% -5%`) — strongest, anchors the eye on the hero
+- Mid-left extension (`-5% 55%`) — carries glow down past the sidebar
+- Bottom-right counterweight (`100% 110%`) — keeps composition balanced
+- Cyan highlight (`85% 20%`) — small accent near the hero art on the login screen
+
+The same overlay sits behind every authenticated page.
+
+### Special — the login hero
+
+`login-hero.tsx` renders a Space-Mono ASCII glyph with a 5s `breathe`
+keyframe animation (`@keyframes hero-breathe` in `globals.css`) — opacity
+pulses between 0.55 and 0.95, brightness 0.9 → 1.1. Dark-locked because the
+login screen is rendered before the theme provider toggles.
+
+### What's likely getting refreshed
+
+Open items if the visual identity is being touched:
+
+- **Saturation pass on `--primary`** — the sky-blue is uniform across the
+  app right now; differentiating button vs link vs badge tones would add
+  hierarchy.
+- **Chart palette diversification** — series 4 in both themes is very
+  desaturated; a brighter secondary hue (purple? warm cyan?) on
+  `--chart-3` would help the top-N bars distinguish more clearly.
+- **Typography pairing** — Space Mono for everything is identifiable but
+  heavy on long-form prose (reasoning expansions in lead detail). A sans
+  pair for `--font-sans` while keeping Space Mono on numerics / chips
+  would be the cleanest upgrade.
+- **Card translucency** — current `oklch(... / 0.6)` in dark mode reads
+  well on the gradient but can feel washed out where cards stack. A solid
+  `--card-solid` variant for nested-card cases is worth considering.
