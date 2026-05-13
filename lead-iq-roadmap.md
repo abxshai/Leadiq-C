@@ -4,6 +4,8 @@ Living doc of what's shipped, what's queued, and what's parked. Update
 it every time something lands or a new request comes in. Keep sections
 short.
 
+Companion docs: [`DOCS.md`](./DOCS.md) (product + architecture), [`UI.md`](./UI.md) (design system: fonts, color tokens, component conventions, refresh candidates).
+
 *Last updated: 2026-05-13*
 
 ---
