@@ -101,9 +101,9 @@
      and chart components, swapped per-theme so the same component renders
      correctly in both modes). */
   --gradient-stop-1: oklch(0.65 0.18 262 / 0.08);
-  --gradient-stop-2: oklch(0.72 0.14 230 / 0.06);
-  --gradient-stop-3: oklch(0.78 0.13 200 / 0.05);
-  --gradient-stop-4: oklch(0.78 0.13 200 / 0.06);
+  --gradient-stop-2: oklch(0.80 0.12 275 / 0.06);
+  --gradient-stop-3: oklch(0.85 0.09 270 / 0.05);
+  --gradient-stop-4: oklch(0.82 0.10 280 / 0.04);
   --chart-axis: oklch(0.45 0.02 240);
   --chart-grid: oklch(0.18 0.02 240 / 0.08);
 
@@ -157,9 +157,9 @@
   --sidebar-ring: oklch(0.65 0.18 262 / 0.6);
 
   --gradient-stop-1: oklch(0.65 0.18 262 / 0.20);
-  --gradient-stop-2: oklch(0.72 0.14 230 / 0.14);
-  --gradient-stop-3: oklch(0.78 0.13 200 / 0.10);
-  --gradient-stop-4: oklch(0.78 0.13 200 / 0.12);
+  --gradient-stop-2: oklch(0.80 0.12 275 / 0.14);
+  --gradient-stop-3: oklch(0.85 0.09 270 / 0.10);
+  --gradient-stop-4: oklch(0.82 0.10 280 / 0.10);
   --chart-axis: oklch(0.68 0.02 240);
   --chart-grid: oklch(1 0 0 / 0.08);
 
@@ -181,10 +181,10 @@ body::before {
   position: fixed;
   inset: 0;
   background:
-    radial-gradient(ellipse 140% 110% at 8% -5%, var(--gradient-stop-1), transparent 75%),
-    radial-gradient(ellipse 100% 90% at -5% 55%, var(--gradient-stop-2), transparent 80%),
-    radial-gradient(ellipse 110% 95% at 100% 110%, var(--gradient-stop-3), transparent 75%),
-    radial-gradient(ellipse 80% 60% at 85% 20%, var(--gradient-stop-4), transparent 80%);
+    radial-gradient(ellipse 130% 100% at 12% -5%, var(--gradient-stop-1), transparent 75%),
+    radial-gradient(ellipse 90% 80% at 0% 45%, var(--gradient-stop-2), transparent 80%),
+    radial-gradient(ellipse 70% 60% at 25% 20%, var(--gradient-stop-3), transparent 75%),
+    radial-gradient(ellipse 55% 50% at -5% 80%, var(--gradient-stop-4), transparent 80%);
   pointer-events: none;
   z-index: 0;
 }
