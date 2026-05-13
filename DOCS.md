@@ -522,8 +522,11 @@ refresh, so this section is also the inventory of what's getting touched.
 
 ### Fonts
 
-- **Sans + mono:** **Space Mono** (Google Fonts, weights 400 + 700, latin subset). The same family is bound to both `--font-sans` and `--font-mono` — every text surface in the app is monospace by intent. Loaded via `next/font/google` in `src/app/layout.tsx`.
-- The `font-heading` token aliases to `--font-sans`, so headings are also Space Mono.
+Three faces — Space Mono carried over from launch, two new ones cloned 2026-05-13 from [aiengineeringfromscratch.com](https://aiengineeringfromscratch.com/) (`rohitg00/ai-engineering-from-scratch`). All Google Fonts, all loaded via `next/font/google` in `src/app/layout.tsx`:
+
+- **`--font-sans` → Space Mono** (weights 400 + 700). Default body face. Everything that doesn't opt into mono or display renders here — paragraphs, lead summaries, table cells, KPI labels. `--font-heading` aliases to `--font-sans`, so Card / Dialog / AlertDialog titles also use Space Mono (the `font-display` utility is reserved for big page H1s only).
+- **`--font-mono` → JetBrains Mono** (weights 400 / 500 / 700). Used wherever a component applies `font-mono` — code chips, error displays, the login hero ASCII art, template version previews, the system-prompt textarea, chart tooltip numbers, the connect-key dialogs.
+- **`--font-display` → VT323** (weight 400). Pixel-terminal retro face. Applied **only** to page H1 titles in `PageHeader` via the `font-display` utility at `text-5xl`. VT323 reads small for its physical box, so it only works at display sizes — do not promote to body or smaller chrome.
 
 ### Theme — color tokens
 
