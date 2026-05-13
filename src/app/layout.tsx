@@ -31,7 +31,7 @@ const vt323 = VT323({
 });
 
 export const metadata: Metadata = {
-  title: "Qualifier — Lead Qualification Dashboard",
+  title: "Lead-IQ",
   description:
     "Ingest LinkedIn profiles, qualify against ICP via Groq, export to CSV or Google Sheets.",
 };

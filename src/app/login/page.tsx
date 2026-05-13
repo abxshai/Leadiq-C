@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -52,6 +53,14 @@ export default function LoginPage() {
         {/* Hero row: title left, ASCII right */}
         <div className="grid gap-10 sm:grid-cols-[1fr_1.3fr] items-center mb-10">
           <div className="space-y-3">
+            <Image
+              src="/logowhite.png"
+              alt=""
+              width={220}
+              height={68}
+              priority
+              className="h-12 w-auto object-contain mb-2"
+            />
             <h1 className="text-6xl sm:text-7xl font-bold tracking-tight leading-none">
               lead-
               <span className="text-primary">IQ</span>

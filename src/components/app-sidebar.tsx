@@ -1,5 +1,6 @@
 "use client";
 
+import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
@@ -7,7 +8,6 @@ import {
   FileText,
   BarChart3,
   Settings,
-  Sparkles,
   Radar,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
@@ -27,10 +27,15 @@ export function AppSidebar({ email }: { email: string }) {
   return (
     <aside className="hidden md:flex md:w-60 shrink-0 flex-col border-r border-sidebar-border bg-sidebar/60 backdrop-blur-xl">
       <div className="flex h-14 items-center gap-2 px-5 border-b border-sidebar-border">
-        <div className="flex h-7 w-7 items-center justify-center rounded-md bg-primary/15 ring-1 ring-primary/30">
-          <Sparkles className="h-4 w-4 text-primary" />
-        </div>
-        <span className="font-semibold tracking-tight">Qualifier</span>
+        <Image
+          src="/logowhite.png"
+          alt="Lead-IQ"
+          width={90}
+          height={28}
+          priority
+          className="h-6 w-auto object-contain invert dark:invert-0"
+        />
+        <span className="font-semibold tracking-tight">Lead-IQ</span>
       </div>
 
       <nav className="flex-1 px-3 py-4 space-y-1">
