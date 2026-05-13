@@ -51,7 +51,7 @@ export default function LoginPage() {
     <div className="flex min-h-dvh items-center justify-center px-6 py-12">
       <div className="w-full max-w-6xl">
         {/* Hero row: title left, ASCII right */}
-        <div className="grid gap-10 sm:grid-cols-[1fr_1.3fr] items-center mb-10">
+        <div className="grid gap-10 sm:gap-32 sm:grid-cols-[1fr_1.5fr] items-center mb-10">
           <div className="space-y-3">
             <Image
               src="/logowhite.png"
@@ -61,7 +61,7 @@ export default function LoginPage() {
               priority
               className="h-12 w-auto object-contain mb-2"
             />
-            <h1 className="text-6xl sm:text-7xl font-bold tracking-tight leading-none">
+            <h1 className="font-display text-6xl sm:text-7xl tracking-tight leading-none">
               lead-
               <span className="text-primary">IQ</span>
             </h1>

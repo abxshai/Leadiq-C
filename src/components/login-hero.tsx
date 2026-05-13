@@ -1,7 +1,7 @@
-// Static ASCII art for the login hero. Rendered pixel-perfect; a subtle
-// CSS breathing animation (opacity + brightness) keeps it feeling alive
-// without disturbing the character grid. Animation keyframes live in
-// src/app/globals.css under .animate-hero-breathe.
+// Static ASCII art for the login hero. Rendered pixel-perfect; a rapid
+// CSS color-cycle animation streams indigo-purple bands downward through
+// the glyphs via background-clip: text. Keyframes live in
+// src/app/globals.css under .animate-hero-stream.
 const PATTERN = `
 
                                         .'..''"<[/xvvr|[<:''''''
@@ -44,7 +44,7 @@ export function LoginHero() {
   return (
     <pre
       aria-hidden
-      className="animate-hero-breathe text-[7px] sm:text-[8px] md:text-[9px] leading-[1] text-primary font-mono whitespace-pre select-none"
+      className="animate-hero-stream text-[10px] sm:text-[12px] md:text-[14px] leading-[1] font-mono whitespace-pre select-none"
     >
       {PATTERN}
     </pre>

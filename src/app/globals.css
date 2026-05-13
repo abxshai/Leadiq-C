@@ -209,17 +209,30 @@ body > * {
   }
 }
 
-@keyframes hero-breathe {
-  0%, 100% {
-    opacity: 0.55;
-    filter: brightness(0.9);
-  }
-  50% {
-    opacity: 0.95;
-    filter: brightness(1.1);
-  }
+@keyframes hero-stream {
+  from { background-position: 0 0; }
+  to   { background-position: 0 2em; }
 }
 
-.animate-hero-breathe {
-  animation: hero-breathe 5s ease-in-out infinite;
+.animate-hero-stream {
+  background-image: linear-gradient(
+    180deg in oklab,
+    #fff,
+    #d4d4d4 15%,
+    #999 30%,
+    #555 42%,
+    #000 50%,
+    #555 58%,
+    #999 70%,
+    #d4d4d4 85%,
+    #fff
+  );
+  background-size: 100% 2em;
+  background-repeat: repeat;
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  -webkit-text-fill-color: transparent;
+  animation: hero-stream 2s linear infinite;
 }
+
