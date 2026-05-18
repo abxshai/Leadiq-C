@@ -1,6 +1,6 @@
 # Lead-IQ — UI / design system
 
-*Last updated: 2026-05-13*
+*Last updated: 2026-05-18*
 
 This is the working inventory of every visual decision baked into the app — fonts, colors, components, and where each token surfaces. Use it to scope a refresh: every line below is something you can choose to keep or change.
 
@@ -41,7 +41,7 @@ Three faces, all Google Fonts via `next/font/google` in `src/app/layout.tsx`.
 |---|---|---|---|
 | `--font-sans` | **Space Mono** (400 / 700) | Body, paragraphs, table cells, KPI labels, Card / Dialog / AlertDialog titles (via `--font-heading` alias) | Default. Mono-spaced; tabular by nature. |
 | `--font-mono` | **JetBrains Mono** (400 / 500 / 700) | Code chips, error displays (campaign-detail + scrape), login-hero ASCII art, template version previews, system-prompt textarea, chart tooltip numbers, connect-key dialogs | Anything with the `font-mono` Tailwind utility. |
-| `--font-display` | **VT323** (400) | Page H1 titles in `PageHeader` (`text-5xl`) — and only there | Pixel-terminal retro. Reads small per its physical box; **do not** promote to body or smaller chrome. |
+| `--font-display` | **VT323** (400) | Page H1 titles in `PageHeader` (`text-5xl`) and the login hero H1 (`text-6xl sm:text-7xl`) | Pixel-terminal retro. Reads small per its physical box; **do not** promote to body or smaller chrome. |
 | `--font-heading` | alias → `--font-sans` | Inherited by Card/Dialog/AlertDialog titles | Kept aliased so reducing-prominence titles stay Space Mono. |
 
 Cloned 2026-05-13 — VT323 + JetBrains Mono came from [aiengineeringfromscratch.com](https://aiengineeringfromscratch.com/) (`rohitg00/ai-engineering-from-scratch`). Their body face (Source Serif 4) was explicitly not adopted.
@@ -64,24 +64,27 @@ Both themes declared in `src/app/globals.css`. Colors in OKLCH so hue / chroma s
 | `--popover` | `oklch(0.99 0.002 240)` | `oklch(0.12 0.01 240)` | DropdownMenu, Select, Tooltip surfaces. |
 | `--muted` | `oklch(0.95 0.01 240)` | `oklch(0.2 0.01 240)` | Secondary surfaces, filled inputs. |
 | `--muted-foreground` | `oklch(0.45 0.02 240)` | `oklch(0.68 0.02 240)` | Descriptions, helper text, table secondary cells. |
-| `--accent` | `oklch(0.93 0.04 237)` | `oklch(0.24 0.04 237)` | Hover/focus surfaces (`bg-accent`). |
+| `--accent` | `oklch(0.93 0.04 262)` | `oklch(0.24 0.04 262)` | Hover/focus surfaces (`bg-accent`). Hue tracks `--primary` so accent stays in family. |
 | `--destructive` | `oklch(0.6 0.21 22.216)` | `oklch(0.704 0.191 22.216)` | Delete buttons, error banners. |
 
 ### Brand
 
+Brand color is unified across themes — same OKLCH triplet in `:root` and `.dark`, alpha tweaked per surface where needed.
+
 | Token | Light | Dark | Used for |
 |---|---|---|---|
-| `--primary` | `oklch(0.6 0.17 237)` | `oklch(0.685 0.169 237)` | **Sky-blue.** Buttons, focus rings, qualified badges, primary chart series, sidebar primary surfaces. |
-| `--primary-foreground` | `oklch(0.99 0 0)` | `oklch(0.12 0.02 240)` | Text/icons on primary surfaces. |
-| `--border` | `oklch(0.6 0.17 237 / 0.18)` | `oklch(0.685 0.169 237 / 0.18)` | Sky-tinted borders by default. |
-| `--ring` | `oklch(0.6 0.17 237 / 0.6)` | `oklch(0.685 0.169 237 / 0.6)` | Focus rings (3px). |
-| `--input` | `oklch(0.18 0.02 240 / 0.08)` | `oklch(1 0 0 / 0.08)` | Input field fills. |
+| `--primary` | `oklch(0.65 0.18 262)` | `oklch(0.65 0.18 262)` | **#4E8CFA**, a saturated true-blue. Buttons, focus rings, page H1 titles, qualified badges, primary chart series, sidebar primary surfaces. |
+| `--primary-foreground` | `oklch(0.99 0 0)` | `oklch(0.985 0 0)` | White text/icons on primary surfaces in both modes. |
+| `--border` | `oklch(0.65 0.18 262 / 0.18)` | `oklch(0.65 0.18 262 / 0.18)` | Brand-tinted borders. |
+| `--ring` | `oklch(0.65 0.18 262 / 0.6)` | `oklch(0.65 0.18 262 / 0.6)` | Focus rings (3px). |
+| `--input` | `oklch(0.18 0.02 240 / 0.08)` | `oklch(1 0 0 / 0.08)` | Input field fills (kept neutral; not on the brand hue). |
+| `--card-glow` | `0 0 0 1px rgb(0 0 0 / 0.04), 0 6px 20px -6px rgb(0 0 0 / 0.18)` | identical | Subtle dark-grey halo on cards. Applied in `card.tsx` via `shadow-[var(--card-glow)]` alongside the existing `ring-1 ring-foreground/10`. |
 
 ### Charts
 
 | Token | Light | Dark | Used for |
 |---|---|---|---|
-| `--chart-1` | `oklch(0.6 0.17 237)` | `oklch(0.685 0.169 237)` | Primary series (qualified leads, dominant bar fills). |
+| `--chart-1` | `oklch(0.65 0.18 262)` | `oklch(0.65 0.18 262)` | Primary series (qualified leads, dominant bar fills). Tracks `--primary`. |
 | `--chart-2` | `oklch(0.7 0.13 210)` | `oklch(0.78 0.13 210)` | Cyan-ish second series. |
 | `--chart-3` | `oklch(0.5 0.18 258)` | `oklch(0.55 0.18 258)` | Indigo / purple-ish third series. |
 | `--chart-4` | `oklch(0.78 0.05 240)` | `oklch(0.4 0.05 240)` | Muted / "not qualified" overlay (desaturated). |
@@ -93,18 +96,31 @@ shadcn's `ChartContainer` re-emits the per-key chart vars as `--color-{key}` so 
 
 ### Sidebar
 
-`--sidebar-*` family (8 tokens) for the left rail. Slightly darker than the main canvas in dark mode; lighter and slightly blue-tinted in light mode. Borders use the brand sky-blue tint.
+`--sidebar-*` family (8 tokens) for the left rail. Surface / foreground / border tokens stay in the cool-neutral hue-240 family; `--sidebar-accent` (active and hover row fill) is rebased onto the brand hue 262 so the selected nav item reads as the new brand color rather than a generic cool grey.
+
+| Token | Light | Dark | Notes |
+|---|---|---|---|
+| `--sidebar` | `oklch(0.97 0.005 240)` | `oklch(0.04 0.005 240)` | Rail background. |
+| `--sidebar-accent` | `oklch(0.93 0.06 262)` | `oklch(0.26 0.09 262)` | Active/hover row fill — brand-tinted. |
+| `--sidebar-accent-foreground` | `oklch(0.32 0.18 262)` | `oklch(0.985 0 0)` | Text on active row. |
+| `--sidebar-primary` | `oklch(0.65 0.18 262)` | `oklch(0.65 0.18 262)` | Mirrors `--primary`. |
+| `--sidebar-border` | `oklch(0.65 0.18 262 / 0.16)` | `oklch(0.65 0.18 262 / 0.14)` | Brand-tinted hairlines. |
+| `--sidebar-ring` | `oklch(0.65 0.18 262 / 0.6)` | `oklch(0.65 0.18 262 / 0.6)` | Focus rings on sidebar controls. |
+
+Active row in `app-sidebar.tsx` composes `bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-primary/25` — the brand-tinted fill plus a faint primary ring around the edge.
 
 ### Decorative gradient
 
-`--gradient-stop-1` … `--gradient-stop-4` drive the `body::before` fixed overlay (4 radial gradients). Same sky-blue family across themes; dark uses ~28% alpha on the strongest stop, light uses ~16% so the overlay stays subtle.
+`--gradient-stop-1` … `--gradient-stop-4` drive the `body::before` fixed overlay (4 radial gradients). All four blobs are now **left-anchored** so the right half of every page stays clean. Hues ramp through one indigo family (262 → 275 → 270 → 280), with stops 2–4 lighter (L 0.80–0.85) than the brand anchor (L 0.65) — gives the bg a soft halo around the title area rather than a saturated wash.
 
 ```
-top-left bloom (8% -5%)    — strongest, anchors the eye on the hero
-mid-left extension (-5% 55%) — carries glow down past the sidebar
-bottom-right counterweight (100% 110%) — composition balance
-cyan highlight (85% 20%)    — small accent near login hero
+12% -5%   — primary-blue bloom, largest (130% × 100%), anchors behind the page title
+0%  45%   — mid-left tail, lighter indigo (90% × 80%)
+25% 20%   — small accent near title, lighter indigo (70% × 60%)
+-5% 80%   — lower-left wisp, lighter indigo (55% × 50%)
 ```
+
+Alpha: light mode is subtle (0.08 / 0.06 / 0.05 / 0.04); dark mode roughly 2× heavier (0.20 / 0.14 / 0.10 / 0.10).
 
 ---
 
@@ -182,7 +198,17 @@ In the campaign-detail table, `LeadStatus`:
 
 ### Login hero
 
-`login-hero.tsx`. ASCII glyph rendered in JetBrains Mono at responsive sizes (`text-[7px] sm:text-[8px] md:text-[9px]`), `text-primary` color. `animate-hero-breathe` keyframe (defined in `globals.css`) pulses opacity 0.55 → 0.95 + brightness 0.9 → 1.1 over 5s loops.
+`login-hero.tsx`. ASCII glyph rendered in JetBrains Mono at responsive sizes (`text-[10px] sm:text-[12px] md:text-[14px]`). Color is driven by `animate-hero-stream` (defined in `globals.css`), a `background-clip: text` trickle: a repeating 9-stop white → grey → black → grey → white linear-gradient interpolated **in oklab**, tiled at `100% 2em`, with `background-position-y` animating 0 → 2em over 2s linear infinite. Effect: a dense fluid wave of light/dark bands streams downward through the glyph shapes.
+
+Surrounding layout: `login/page.tsx` puts the headline column and the ASCII column in `grid gap-10 sm:gap-32 sm:grid-cols-[1fr_1.5fr] items-center`. The wide gap and right-skewed ratio push the ASCII clearly off to the right of the headline; `overflow-hidden` + `justify-end` on the ASCII container clips ~35 px of left-side leading whitespace (well inside the pattern's ≥270 px indent), so no glyphs are touched.
+
+### Sidebar wordmark
+
+`app-sidebar.tsx` header row: `<Image src="/logowhite.png">` (h-6, width auto, `invert dark:invert-0` so the white-on-transparent asset flips to black in light mode) followed by the `Lead-IQ` wordmark in Space Mono semibold. Asset lives at `public/logowhite.png` (776 × 240).
+
+### Login page logo
+
+`login/page.tsx` mirrors the sidebar pattern but bigger: `<Image src="/logowhite.png">` rendered at h-12 above the `lead-IQ` headline. Login is dark-locked, so no `invert` filter needed there — the white logo just renders on the dark canvas.
 
 ---
 
@@ -206,9 +232,12 @@ In the campaign-detail table, `LeadStatus`:
 | Font loading | `src/app/layout.tsx` |
 | Component layer | `src/components/ui/*.tsx` |
 | Page-title styling | `src/components/page-header.tsx` |
-| Sidebar styling | `src/components/app-sidebar.tsx` |
-| Login hero | `src/components/login-hero.tsx` |
+| Sidebar styling + wordmark | `src/components/app-sidebar.tsx` |
+| Login page | `src/app/login/page.tsx` |
+| Login hero (ASCII + trickle) | `src/components/login-hero.tsx` |
+| Logo asset | `public/logowhite.png` |
 | Chart wrapper | `src/components/ui/chart.tsx` |
+| `--card-glow` consumer | `src/components/ui/card.tsx` |
 
 ---
 
@@ -243,3 +272,6 @@ Concrete candidates for the next visual pass — none of these are committed, al
 - **Original launch palette (sky-blue + black, Space Mono)** — 2026-04-17 milestone M1.
 - **Theme tokens + light mode** — 2026-05-07, added `:root` / `.dark` split, gradient stops per theme.
 - **VT323 + JetBrains Mono adoption** — 2026-05-13, cloned from aiengineeringfromscratch.com.
+- **Brand refresh** — 2026-05-13. Primary swapped from the original sky-blue (`oklch(0.6 0.17 237)`) to **#4E8CFA** (`oklch(0.65 0.18 262)`) after an iteration cycle (#59afff too pale → #2596be too dark → #BDF6FE too washed-out → #276DF9 saturated but heavy → settled on #4E8CFA, slightly lighter and same hue family). Unified across themes (one OKLCH triplet in both modes). `--primary-foreground` set to white in both modes (was light-only). H1 page titles tinted via `text-primary`. Cards gained a subtle dark-grey `--card-glow` box-shadow halo. Sidebar wordmark `Qualifier` → `Lead-IQ`, Sparkles glyph replaced by `logowhite.png` (Deccan / company mark, white-on-transparent, inverted in light mode). `--sidebar-accent` rebased onto hue 262 so the active nav row reads as brand. Metadata title also flipped to just `Lead-IQ`.
+- **Background gradient → indigo family, left-anchored** — 2026-05-13. Four radial blobs concentrated on the left half (behind page title, trailing down the left edge). Cyan stops (hues 200 / 230) retired in favour of a uniform indigo family (262 → 275 → 270 → 280) with stops 2–4 noticeably lighter than the brand anchor. Blob sizes ~2× larger than the original launch geometry with softer 75–80% fades for an atmospheric feel.
+- **Login hero animation overhaul** — 2026-05-13. `animate-hero-breathe` (opacity + brightness pulse) replaced by `animate-hero-stream` — a `background-clip: text` trickle with a 9-stop white → grey → black → grey → white oklab gradient on a 2em vertical tile, scrolled downward at 2s linear infinite. Iteration history: started as a uniform color-cycle, briefly tried a 135° diagonal stream (rolled back), then white static (rolled back), landed on the dense fluid white-grey-black wave. ASCII size 7 / 8 / 9 px → 10 / 12 / 14 px; column grid widened to `sm:gap-32 sm:grid-cols-[1fr_1.5fr]`. Login H1 swapped to `font-display` (VT323) to match in-app PageHeader. Company logo added above the headline.

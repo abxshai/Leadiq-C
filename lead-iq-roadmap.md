@@ -6,7 +6,7 @@ short.
 
 Companion docs: [`DOCS.md`](./DOCS.md) (product + architecture), [`UI.md`](./UI.md) (design system: fonts, color tokens, component conventions, refresh candidates).
 
-*Last updated: 2026-05-13*
+*Last updated: 2026-05-18*
 
 ---
 
@@ -105,6 +105,14 @@ On the radar, not committed. Promote when a real trigger appears.
 ---
 
 ## Shipped
+
+**2026-05-13**
+- [x] **Brand refresh — #4E8CFA primary.** Iterated through #59afff / #2596be / #BDF6FE / #276DF9 before landing on **#4E8CFA** (`oklch(0.65 0.18 262)`) — a slightly-lighter true blue with one OKLCH triplet shared across light and dark. Every brand-hue token (primary, border, ring, chart-1, accent, sidebar-primary / -border / -ring / -accent) tracks the new color. `--primary-foreground` set to white in both modes (white-on-blue passes WCAG AA at ~4.5:1 in both). Page H1 titles in `PageHeader` now tinted via `text-primary`. Cards gain a subtle dark-grey halo via a new `--card-glow` box-shadow token (`shadow-[var(--card-glow)]` in `card.tsx`, identical light/dark value).
+- [x] **Sidebar — Lead-IQ wordmark + logo + brand-tinted active tab.** Replaced the Sparkles icon + "Qualifier" wordmark with `<Image src="/logowhite.png">` + "Lead-IQ" in `app-sidebar.tsx`. Logo asset (776 × 240, white-on-transparent — Deccan company mark) ships in `public/`; `invert dark:invert-0` flips it to black in light mode. `--sidebar-accent` rebased from a legacy hue-240 cool grey onto hue 262 with higher chroma, so the active nav row reads as brand-blue rather than near-neutral. `--sidebar-accent-foreground` retuned to keep text contrast.
+- [x] **Login page — company logo + VT323 headline + ASCII trickle.** `<Image src="/logowhite.png">` added above the `lead-IQ` headline. Headline swapped to `font-display` (VT323) so it matches in-app PageHeader typography. ASCII hero sized up 7 / 8 / 9 px → 10 / 12 / 14 px. Surrounding grid widened to `sm:gap-32 sm:grid-cols-[1fr_1.5fr]` so the ASCII sits cleanly off to the right of the headline (clipping only `~35px` of leading whitespace via `overflow-hidden` + `justify-end`).
+- [x] **Login hero animation — trickle stream replaces breathing pulse.** `animate-hero-breathe` (opacity + brightness, 5s) retired. `animate-hero-stream` uses `background-clip: text` to apply a repeating 9-stop white → grey → black → grey → white linear-gradient (interpolated `in oklab` for perceptually smooth tone ramp) to the ASCII glyphs; tile is `100% 2em`, `background-position-y` animates 0 → 2em at 2s linear infinite. Net effect: a dense fluid wave of light/dark bands streams downward through the glyph shapes. (Iteration: tried uniform hue cycling, then a 135° diagonal stream, then static white — all rolled back in favour of the dense vertical wave.)
+- [x] **Background gradient — left-anchored, indigo-family only.** Four radial blobs in `body::before` repositioned to the left half of the viewport (behind the page title, trailing down the left edge). Largest blob (`130% × 100%` at `12% -5%`) anchors the title area; three smaller stops trail down. Cyan accents (hues 200 / 230) retired in favour of a single indigo family (262 → 275 → 270 → 280) with stops 2–4 lighter (L 0.80–0.85) than the brand anchor (L 0.65). Alphas kept subtle (`0.08 / 0.06 / 0.05 / 0.04` light; ~2× heavier dark). Net effect: an atmospheric soft halo around the title rather than a saturated wash.
+- [x] **Browser title.** Metadata title in `layout.tsx` flipped `"Qualifier — Lead Qualification Dashboard"` → `"Lead-IQ"`.
 
 **2026-05-09**
 - [x] **Zombie-campaign auto-reset on server boot.** `instrumentation.ts` (Next 16's once-per-boot hook) flips any `leads.status='running'` back to `pending` and any `campaigns.status='running'` to `canceled` on startup. Promoted from backlog after a Railway redeploy mid-run left campaign `aa9dd37d` stuck at 147 processed leads with no worker behind it. The route guard already accepts `canceled` for resume, so users just click Resume after the deploy completes — no SQL needed. Skips Edge runtime, build phase, and dev without a service-role key. Boot log lines surface counts: `[instrumentation] reset N zombie lead(s) ...`.
