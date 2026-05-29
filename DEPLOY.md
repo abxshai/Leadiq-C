@@ -51,13 +51,14 @@ git push -u origin main
 
 ## 3. Set environment variables
 
-In the Railway service → **Variables** tab, add these **five** keys:
+In the Railway service → **Variables** tab, add these **six** keys:
 
 | Key | Value |
 |---|---|
 | `NEXT_PUBLIC_SUPABASE_URL` | `https://<project-ref>.supabase.co` |
 | `NEXT_PUBLIC_SUPABASE_ANON_KEY` | your Supabase anon key |
 | `SUPABASE_SERVICE_ROLE_KEY` | your Supabase service-role key |
+| `SUPABASE_DB_URL` | direct Postgres connection string. Supabase dashboard → Project Settings → Database → **Connection string** (Transaction pooler, port 6543, recommended). Needed by the **LeadQuery agent (M-AG1)** to run read-only SQL via postgres.js. |
 | `NODE_ENV` | `production` |
 | `NEXT_TELEMETRY_DISABLED` | `1` |
 
@@ -140,7 +141,42 @@ failed: …`.
 
 ---
 
-## 8. (Optional) Custom domain
+## 8. Deploy Supabase edge functions
+
+The **LeadQuery** agent (see [`agent-section-plan.md`](./agent-section-plan.md)) uses Supabase's hosted gte-small model to embed leads for semantic search. Embeddings are computed by an Edge Function at `supabase/functions/embed-text`. Edge Functions live in Supabase, not Railway — Railway redeploys don't touch them.
+
+**One-time setup:**
+
+1. Install the Supabase CLI if you haven't already:
+   ```bash
+   brew install supabase/tap/supabase
+   ```
+2. From the repo root, link your Supabase project:
+   ```bash
+   supabase link --project-ref <your-project-ref>
+   ```
+3. Deploy the edge function:
+   ```bash
+   supabase functions deploy embed-text
+   ```
+
+**On every change to the edge function:** re-run `supabase functions deploy embed-text`. No Railway redeploy needed for edge function changes alone.
+
+**Env vars:** none required beyond what Supabase provides to the edge function runtime — gte-small is hosted by Supabase itself, no BYOK key.
+
+**Verify:** Supabase dashboard → **Edge Functions** should list `embed-text`. From the deployed Lead-IQ app, run a small campaign and check that `leads.embedded_at` populates after qualification.
+
+**One-shot backfill of existing leads** (run once after first deploy):
+
+```bash
+SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... npm run backfill-embeddings
+```
+
+Walks all leads where `embedding IS NULL`, embeds via the edge function, writes back. ~5-10 min for ~3000 leads. Non-destructive — only writes to NULL rows; safe to run on a live system.
+
+---
+
+## 9. (Optional) Custom domain
 
 Railway → your service → **Settings → Networking → Custom Domain**. Add
 `qualifier.yourdomain.com`, set the CNAME at your DNS provider to the

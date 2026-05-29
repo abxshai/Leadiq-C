@@ -9,6 +9,7 @@ import {
   BarChart3,
   Settings,
   Radar,
+  MessageSquare,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserButton } from "@/components/user-button";
@@ -18,6 +19,7 @@ const nav = [
   { href: "/campaigns", label: "Campaigns", icon: LayoutDashboard },
   { href: "/templates", label: "Prompt Templates", icon: FileText },
   { href: "/analytics", label: "Analytics", icon: BarChart3 },
+  { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/settings", label: "Settings", icon: Settings },
 ];
 

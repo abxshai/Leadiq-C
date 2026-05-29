@@ -6,7 +6,7 @@ short.
 
 Companion docs: [`DOCS.md`](./DOCS.md) (product + architecture), [`UI.md`](./UI.md) (design system: fonts, color tokens, component conventions, refresh candidates).
 
-*Last updated: 2026-05-18*
+*Last updated: 2026-05-29*
 
 ---
 
@@ -21,6 +21,32 @@ Companion docs: [`DOCS.md`](./DOCS.md) (product + architecture), [`UI.md`](./UI.
 ---
 
 ## Next up (active milestones)
+
+### M-AG1 — LeadQuery: queryable agent over Lead-IQ leads
+
+**Why:** GTM teammates can answer "show me qualified leads from Robotics in May" by clicking through filters in `/analytics`, but anything more conversational requires CSV-export and spreadsheet work. New `/chat` route + LeadQuery agent: natural-language → SQL using **MCP-style raw SQL tools** (`execute_sql`, `list_tables`, `get_table_schema`) with read-only enforced at the Postgres transaction level. Multi-agent registry from day 1 — future agents (Touchpoint Retrieval, etc.) drop in as config.
+
+**Concept-similarity (e.g. "find leads about AI infra even if their title says 'ML platform engineer'") is intentionally deferred to M-AG2** — pgvector + Supabase gte-small embeddings as a follow-up milestone once we've seen how the team uses M-AG1.
+
+**Why this is first (not M3.5 or M-CX1):** zero external dependency. M-CX1 is gated on another team shipping the common-DB endpoint. M3.5 ships better once the chat agent informs which filters the `/leads` view should expose. LeadQuery is fully internal — can start immediately.
+
+**Plan doc:** [`agent-section-plan.md`](./agent-section-plan.md) — chat schema (`0005_chat_tables.sql`), MCP-style tool surface, chat UI, multi-agent registry.
+
+**Estimate:** ~11.5 hours (~2–3 working days incl. QA).
+
+---
+
+### M-CX1 — Smartlead/HubSpot cross-check + lead temperature
+
+**Why:** every qualified lead gets enriched with prior touchpoint history (last campaign + status + date) by POSTing to the common-DB, and tagged **hot** / **warm** / **cold** based on the returned touchpoints. New Temperature column on the campaign-detail lead table; existing inline-expand pattern (function reasoning, lead summary) extended with a "Touchpoint history" section for hot/warm leads.
+
+**Dependency:** the common-DB owners (other team) need to ship `POST /api/leads` per the plan doc §2.2. Lead-IQ-side work can start against a stub once the contract is confirmed.
+
+**Plan doc:** [`cross-check-plan.md`](./cross-check-plan.md) — push contract, classifier rules, schema (`0006_lead_temperature.sql`), UI, worker hook.
+
+**Estimate:** ~8 hours once the common-DB endpoint is reachable.
+
+---
 
 ### M3.5 — Leads drilldown + analytics deep-links
 
@@ -44,7 +70,23 @@ Companion docs: [`DOCS.md`](./DOCS.md) (product + architecture), [`UI.md`](./UI.
 
 ---
 
+### M-AG2 — Semantic similarity follow-up to M-AG1
+
+**Status:** deferred follow-up to M-AG1.
+
+**Why:** M-AG1's LeadQuery agent answers natural-language → SQL filtering cleanly via MCP-style tools, but can't handle concept-similarity questions like *"find leads about AI infrastructure even if their title says 'ML platform engineer'."* M-AG2 adds pgvector + Supabase gte-small embeddings + a `semantic_search_leads` tool that wraps embed-then-vector-op into one call.
+
+**When:** after the GTM team uses M-AG1 in anger for a couple of weeks and either asks for "find similar to X" workflows or doesn't.
+
+**Plan doc:** [`agent-section-plan.md`](./agent-section-plan.md) §4 (Embeddings) and §8 (Worker hook) — both tagged **[M-AG2 — DEFERRED]** in that doc.
+
+**Estimate:** ~6 hours (migration `0007_pgvector_embeddings.sql` + edge function + worker hook + backfill + semantic tool).
+
+---
+
 ### M4 — Clay webhook integration
+
+**Status: parked 2026-05-28.** Smartlead/HubSpot via the common-DB (M-CX1) now covers the outreach push pattern from a different angle (enrichment, not push). Re-evaluate after M-CX1 lands and we see whether there's still a Clay-shaped gap.
 
 **Why:** Qualified leads have to land in Clay for outreach; today that's a manual CSV import. Push model, not pull — simpler both sides.
 
