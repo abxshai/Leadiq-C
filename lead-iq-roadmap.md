@@ -22,20 +22,6 @@ Companion docs: [`DOCS.md`](./DOCS.md) (product + architecture), [`UI.md`](./UI.
 
 ## Next up (active milestones)
 
-### M-AG1 — LeadQuery: queryable agent over Lead-IQ leads
-
-**Why:** GTM teammates can answer "show me qualified leads from Robotics in May" by clicking through filters in `/analytics`, but anything more conversational requires CSV-export and spreadsheet work. New `/chat` route + LeadQuery agent: natural-language → SQL using **MCP-style raw SQL tools** (`execute_sql`, `list_tables`, `get_table_schema`) with read-only enforced at the Postgres transaction level. Multi-agent registry from day 1 — future agents (Touchpoint Retrieval, etc.) drop in as config.
-
-**Concept-similarity (e.g. "find leads about AI infra even if their title says 'ML platform engineer'") is intentionally deferred to M-AG2** — pgvector + Supabase gte-small embeddings as a follow-up milestone once we've seen how the team uses M-AG1.
-
-**Why this is first (not M3.5 or M-CX1):** zero external dependency. M-CX1 is gated on another team shipping the common-DB endpoint. M3.5 ships better once the chat agent informs which filters the `/leads` view should expose. LeadQuery is fully internal — can start immediately.
-
-**Plan doc:** [`agent-section-plan.md`](./agent-section-plan.md) — chat schema (`0005_chat_tables.sql`), MCP-style tool surface, chat UI, multi-agent registry.
-
-**Estimate:** ~11.5 hours (~2–3 working days incl. QA).
-
----
-
 ### M-CX1 — Smartlead/HubSpot cross-check + lead temperature
 
 **Why:** every qualified lead gets enriched with prior touchpoint history (last campaign + status + date) by POSTing to the common-DB, and tagged **hot** / **warm** / **cold** based on the returned touchpoints. New Temperature column on the campaign-detail lead table; existing inline-expand pattern (function reasoning, lead summary) extended with a "Touchpoint history" section for hot/warm leads.
@@ -147,6 +133,9 @@ On the radar, not committed. Promote when a real trigger appears.
 ---
 
 ## Shipped
+
+**2026-05-29**
+- [x] **M-AG1 — LeadQuery agent (chat + read-only SQL tools).** New `/chat` route + multi-agent registry; first agent **LeadQuery** answers natural-language questions with raw read-only SQL against `campaigns` / `leads` / `campaign_stats` via three MCP-style tools (`execute_sql`, `list_tables`, `get_table_schema`). Read-only enforced at the Postgres transaction level (`SET LOCAL transaction read only`); 10s statement timeout; 50-row result cap. SSE streaming with token-by-token assistant text + collapsible tool-call cards; Groq tool-call loop in `src/app/api/chat/conversations/[id]/messages/route.ts`. Migration `0005_chat_tables.sql` adds `chat_conversations` + `chat_messages` with RLS and Data API grants per project convention. New env var `SUPABASE_DB_URL` (transaction-pooler URI) — `DEPLOY.md` §8 documents the connection-string lookup. Embeddings + semantic similarity intentionally deferred to M-AG2; migration numbering reflects that (0006 = M-CX1, 0007 = M-AG2). Sidebar entry between Analytics and Settings (MessageSquare icon). Plan doc: [`agent-section-plan.md`](./agent-section-plan.md). Deployed to Railway via commit `e11b9c5`.
 
 **2026-05-13**
 - [x] **Brand refresh — #4E8CFA primary.** Iterated through #59afff / #2596be / #BDF6FE / #276DF9 before landing on **#4E8CFA** (`oklch(0.65 0.18 262)`) — a slightly-lighter true blue with one OKLCH triplet shared across light and dark. Every brand-hue token (primary, border, ring, chart-1, accent, sidebar-primary / -border / -ring / -accent) tracks the new color. `--primary-foreground` set to white in both modes (white-on-blue passes WCAG AA at ~4.5:1 in both). Page H1 titles in `PageHeader` now tinted via `text-primary`. Cards gain a subtle dark-grey halo via a new `--card-glow` box-shadow token (`shadow-[var(--card-glow)]` in `card.tsx`, identical light/dark value).

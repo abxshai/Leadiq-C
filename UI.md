@@ -1,6 +1,6 @@
 # Lead-IQ — UI / design system
 
-*Last updated: 2026-05-18*
+*Last updated: 2026-05-29*
 
 This is the working inventory of every visual decision baked into the app — fonts, colors, components, and where each token surfaces. Use it to scope a refresh: every line below is something you can choose to keep or change.
 
@@ -238,6 +238,9 @@ Surrounding layout: `login/page.tsx` puts the headline column and the ASCII colu
 | Logo asset | `public/logowhite.png` |
 | Chart wrapper | `src/components/ui/chart.tsx` |
 | `--card-glow` consumer | `src/components/ui/card.tsx` |
+| Chat surface | `src/app/(app)/chat/page.tsx`, `src/components/chat/*.tsx` |
+| Agent registry + tools | `src/lib/agents/*.ts`, `src/lib/agents/tools/*.ts` |
+| Postgres pool (chat tools) | `src/lib/agents/pg-pool.ts` (uses `postgres.js`) |
 
 ---
 
@@ -275,3 +278,4 @@ Concrete candidates for the next visual pass — none of these are committed, al
 - **Brand refresh** — 2026-05-13. Primary swapped from the original sky-blue (`oklch(0.6 0.17 237)`) to **#4E8CFA** (`oklch(0.65 0.18 262)`) after an iteration cycle (#59afff too pale → #2596be too dark → #BDF6FE too washed-out → #276DF9 saturated but heavy → settled on #4E8CFA, slightly lighter and same hue family). Unified across themes (one OKLCH triplet in both modes). `--primary-foreground` set to white in both modes (was light-only). H1 page titles tinted via `text-primary`. Cards gained a subtle dark-grey `--card-glow` box-shadow halo. Sidebar wordmark `Qualifier` → `Lead-IQ`, Sparkles glyph replaced by `logowhite.png` (Deccan / company mark, white-on-transparent, inverted in light mode). `--sidebar-accent` rebased onto hue 262 so the active nav row reads as brand. Metadata title also flipped to just `Lead-IQ`.
 - **Background gradient → indigo family, left-anchored** — 2026-05-13. Four radial blobs concentrated on the left half (behind page title, trailing down the left edge). Cyan stops (hues 200 / 230) retired in favour of a uniform indigo family (262 → 275 → 270 → 280) with stops 2–4 noticeably lighter than the brand anchor. Blob sizes ~2× larger than the original launch geometry with softer 75–80% fades for an atmospheric feel.
 - **Login hero animation overhaul** — 2026-05-13. `animate-hero-breathe` (opacity + brightness pulse) replaced by `animate-hero-stream` — a `background-clip: text` trickle with a 9-stop white → grey → black → grey → white oklab gradient on a 2em vertical tile, scrolled downward at 2s linear infinite. Iteration history: started as a uniform color-cycle, briefly tried a 135° diagonal stream (rolled back), then white static (rolled back), landed on the dense fluid white-grey-black wave. ASCII size 7 / 8 / 9 px → 10 / 12 / 14 px; column grid widened to `sm:gap-32 sm:grid-cols-[1fr_1.5fr]`. Login H1 swapped to `font-display` (VT323) to match in-app PageHeader. Company logo added above the headline.
+- **LeadQuery chat surface (M-AG1)** — 2026-05-29. New `/chat` route shipped with a multi-agent registry; first agent is **LeadQuery** (natural-language → read-only SQL). UI conventions added: user message bubbles use `bg-primary/15` with `border-primary/30`; assistant turns are plain-flow text; tool-call cards use a collapsible `bg-muted/30` + `border-border` pill with `font-mono text-xs` body, `lucide:Wrench` glyph for the tool name, and status icons that map to existing semantic tokens (pending → `text-muted-foreground` + `animate-spin`, success → `text-emerald-400`, failure → `text-destructive`). No new design tokens introduced — re-uses the existing palette throughout. Sidebar gained a new "Chat" entry between Analytics and Settings (`lucide:MessageSquare`). Page title uses `font-display` (VT323) inline rather than via `PageHeader` to avoid a prop-shape guess.

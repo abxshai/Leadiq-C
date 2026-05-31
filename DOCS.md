@@ -1,6 +1,6 @@
 # Lead-IQ — Product & Architecture Documentation
 
-*Last updated: 2026-05-13*
+*Last updated: 2026-05-29*
 
 Lead-IQ is an internal self-serve tool at Deccan AI that qualifies
 LinkedIn leads against a target Ideal Customer Profile (ICP) using a
@@ -115,6 +115,18 @@ historical ever changes.
 **(g) Settings** — placeholder for future workspace-level config
 (default Clay URL when M4 lands, etc.).
 
+**(h) Chat — LeadQuery agent.** `/chat` route with a multi-agent
+registry; **LeadQuery** is the first agent (more drop in as config).
+Ask natural-language questions about your qualified leads ("How many
+decision-makers in May's Robotics campaign?", "Top 10 companies by
+qualified count this quarter") and the agent composes read-only SQL
+against `campaigns` / `leads` / `campaign_stats` via three MCP-style
+tools (`execute_sql`, `list_tables`, `get_table_schema`). Tool calls
+render as collapsible cards inline so you can audit the SQL and result.
+Responses stream token-by-token (SSE). Conversation history persists
+in `chat_messages`. Semantic similarity (concept-match without shared
+keywords) is intentionally deferred to M-AG2.
+
 ---
 
 ## 3. Key features
@@ -215,6 +227,16 @@ historical ever changes.
 - **Campaign analytics.** Qualification rates, seniority distribution,
   per-product-area breakdowns — all pulling directly from Supabase
   with no pre-aggregation job.
+- **LeadQuery agent — natural-language SQL over Lead-IQ data.**
+  Three MCP-style tools (`execute_sql`, `list_tables`,
+  `get_table_schema`) give the agent a small, predictable surface;
+  read-only is enforced at the Postgres transaction level
+  (`SET LOCAL transaction read only`) so even a malformed query can't
+  write. Results capped at 50 rows; statement timeout 10s. SSE
+  streaming with collapsible tool-call cards. Multi-agent registry
+  from day 1 — future agents (Touchpoint Retrieval after M-CX1,
+  ICP-tuning suggestions, etc.) plug in as config rather than
+  infrastructure. Semantic similarity deferred to M-AG2.
 
 ---
 
@@ -358,6 +380,16 @@ Groq openai/gpt-oss-120b (JSON mode)
 ## 8. Current state
 
 **Shipped:**
+- **LeadQuery agent + chat surface (M-AG1)** — `/chat` route with
+  natural-language → read-only SQL over `campaigns` / `leads` /
+  `campaign_stats` via three MCP-style tools (`execute_sql`,
+  `list_tables`, `get_table_schema`). Multi-agent registry; first
+  agent of a pluggable surface. SSE streaming with token deltas +
+  collapsible tool-call cards. Conversation persistence in
+  `chat_messages`. Migration `0005_chat_tables.sql` adds
+  `chat_conversations` + `chat_messages` with RLS and Data API grants.
+  New env: `SUPABASE_DB_URL` (transaction-pooler URI). Semantic
+  similarity deferred to M-AG2.
 - Full campaign creation → run → export loop with rerun-failed support
 - **Filterable analytics dashboard** — time / bucket / campaign /
   business unit / ICP / company filters, KPI cards, time-series area
@@ -430,13 +462,10 @@ Groq openai/gpt-oss-120b (JSON mode)
 - Space Mono + ASCII hero login page; password-based shared auth
 
 **Not yet shipped (roadmap):**
-- **`/leads` view-only page + analytics drilldown deep-links** *(next
-  milestone, M3.5)* — cross-campaign lead browser, six-column schema
-  (Name · Function · Domain · Seniority · ICP · LinkedIn) with campaign
-  attribution as a subtitle under Name; filter bar mirrors `/analytics`
-  via URL params so chart slices become shareable deep-links.
-- **Clay webhook push** *(M4)* — qualified leads pushed to Clay for
-  outreach. Pre-empted Google Sheets push.
+- **Smartlead / HubSpot cross-check + lead temperature** *(M-CX1, next milestone)* — every qualified lead enriched with prior touchpoint history (last campaign + status + date) via a common-DB lookup, tagged **hot** / **warm** / **cold** based on the returned touchpoints. New `Temperature` column on the campaign-detail table; inline expand shows touchpoint history. Gated on another team shipping `POST /api/leads` per the contract in [`cross-check-plan.md`](./cross-check-plan.md).
+- **`/leads` view-only page + analytics drilldown deep-links** *(M3.5)* — cross-campaign lead browser with six-column schema (Name · Function · Domain · Seniority · ICP · LinkedIn), filter bar mirroring `/analytics` via URL params. Will inherit the M-CX1 Temperature column for free.
+- **Semantic similarity in LeadQuery** *(M-AG2)* — pgvector + Supabase gte-small embeddings + a `semantic_search_leads` tool. Lets the agent answer concept-match questions ("find leads about AI infra even if their title says 'ML platform engineer'"). Design lives in [`agent-section-plan.md`](./agent-section-plan.md) §4 + §8 (tagged **[M-AG2 — DEFERRED]**).
+- **Clay webhook push** *(M4 — parked 2026-05-28)* — Smartlead/HubSpot via M-CX1 covers the outreach pattern from the enrichment angle; revisit Clay if a push-style gap remains after M-CX1 ships.
 - **Analytics scale fix** — today the page fetches every processed lead
   across all campaigns and filters in-memory; will be visibly slow past
   ~50k leads. Right fix: pre-aggregated SQL views or RPC with the

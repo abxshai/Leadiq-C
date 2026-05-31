@@ -4,6 +4,8 @@
 
 Companion docs: [`cross-check-plan.md`](./cross-check-plan.md), [`lead-iq-roadmap.md`](./lead-iq-roadmap.md), [`DOCS.md`](./DOCS.md), [`UI.md`](./UI.md).
 
+> **Status: M-AG1 shipped 2026-05-29.** Deployed to Railway via commit `e11b9c5`. The M-AG2 sections in this doc (§4 Embeddings, §8 Worker hook) remain deferred — see roadmap for sequencing.
+
 > **Scope split (decided 2026-05-29):** M-AG1 ships the chat surface + LeadQuery agent with **MCP-style raw SQL tools** — no embeddings. M-AG2 follows up later with pgvector + concept-similarity search. Sections in this doc tagged **[M-AG2 — DEFERRED]** describe design that's kept here as the eventual record but is not in M-AG1's scope.
 
 ---
