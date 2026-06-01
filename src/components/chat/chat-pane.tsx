@@ -7,9 +7,10 @@ import {
   type FormEvent,
   type KeyboardEvent,
 } from "react";
-import { Send } from "lucide-react";
+import Link from "next/link";
+import { Send, RotateCcw } from "lucide-react";
 import { useGroqStore } from "@/lib/groq-store";
-import { Button } from "@/components/ui/button";
+import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ChatMessage } from "./chat-message";
 
@@ -224,6 +225,17 @@ export function ChatPane({
 
   return (
     <div className="flex flex-1 flex-col gap-4 min-h-0">
+      {messages.length > 0 && (
+        <div className="flex justify-end">
+          <Link
+            href="/chat?new=1"
+            className={buttonVariants({ variant: "outline", size: "sm" })}
+          >
+            <RotateCcw />
+            Clear chat
+          </Link>
+        </div>
+      )}
       <div className="flex-1 overflow-y-auto pr-2 space-y-3 min-h-0">
         {messages.length === 0 && !streaming && (
           <div className="text-center text-muted-foreground text-sm py-16 space-y-2">

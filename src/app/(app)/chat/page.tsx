@@ -17,16 +17,19 @@ export default async function ChatPage({
 
   const { new: forceNew } = await searchParams;
 
-  // /chat?new=1 forces a fresh conversation by archiving all of this user's
-  // currently-open conversations. Lightweight escape hatch when chat history
-  // poisons the agent's context (it sees prior tool failures and stops
-  // retrying). Will be replaced by a proper conversation-list sidebar.
+  // /chat?new=1 ("Clear chat") archives all of this user's currently-open
+  // conversations, then redirects to the clean /chat URL so a fresh one is
+  // created on the re-render. Archiving (not deleting) keeps history in the
+  // DB for the record. The redirect is important: it strips ?new=1 from the
+  // URL so a subsequent refresh doesn't archive the conversation the user
+  // just started.
   if (forceNew) {
     await supabase
       .from("chat_conversations")
       .update({ archived_at: new Date().toISOString() })
       .eq("created_by", user.id)
       .is("archived_at", null);
+    redirect("/chat");
   }
 
   // Latest non-archived conversation belonging to this user, if any.
