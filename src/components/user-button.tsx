@@ -1,10 +1,10 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { LogOut } from "lucide-react";
 import {
   DropdownMenu,
   DropdownMenuContent,
+  DropdownMenuGroup,
   DropdownMenuItem,
   DropdownMenuLabel,
   DropdownMenuSeparator,
@@ -13,13 +13,14 @@ import {
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 
 export function UserButton({ email }: { email: string }) {
-  const router = useRouter();
   const initials = email.slice(0, 2).toUpperCase();
 
   async function signOut() {
     await fetch("/auth/signout", { method: "POST" });
-    router.replace("/login");
-    router.refresh();
+    // Hard navigation (not router.replace) so we land on a fresh request with
+    // the cleared cookies — avoids any RSC router cache briefly showing the
+    // still-authed state and the proxy bouncing /login → /campaigns.
+    window.location.assign("/login");
   }
 
   return (
@@ -33,9 +34,11 @@ export function UserButton({ email }: { email: string }) {
         <span className="truncate text-sidebar-foreground/90">{email}</span>
       </DropdownMenuTrigger>
       <DropdownMenuContent align="end" className="w-56">
-        <DropdownMenuLabel className="truncate">{email}</DropdownMenuLabel>
+        <DropdownMenuGroup>
+          <DropdownMenuLabel className="truncate">{email}</DropdownMenuLabel>
+        </DropdownMenuGroup>
         <DropdownMenuSeparator />
-        <DropdownMenuItem onSelect={signOut}>
+        <DropdownMenuItem onClick={signOut}>
           <LogOut className="h-4 w-4" />
           Sign out
         </DropdownMenuItem>
