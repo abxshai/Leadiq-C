@@ -6,7 +6,7 @@ short.
 
 Companion docs: [`DOCS.md`](./DOCS.md) (product + architecture), [`UI.md`](./UI.md) (design system: fonts, color tokens, component conventions, refresh candidates).
 
-*Last updated: 2026-05-29*
+*Last updated: 2026-06-03*
 
 ---
 
@@ -104,6 +104,7 @@ On the radar, not committed. Promote when a real trigger appears.
 - [ ] **BI offload (Looker Studio / Metabase) — deferred.** Decision 2026-05-08: keep in-app analytics for now. BI tools are great for analytical / cross-source rollups but bad for operational drilldowns (read-only, no action buttons, Looker's 12-min cache TTL kills real-time). Right shape when Smartlead / HubSpot integrations land: per-source SQL views shaped like `campaign_stats`, then point Metabase/Looker at those views for exec / cross-source reports while keeping operational dashboards in-app. The view layer (which we're already building) is the unified data contract — zero migration cost when the time comes.
 - [ ] Scrape history — persist each fetched PB run to a `scrapes` table (sales nav URL, agent, row count, pushed-to-campaign IDs) so teammates can see what's been pulled without re-fetching. Today each fetch re-downloads from PB on demand.
 - [ ] Native phantom launching from Lead-IQ — revisit the original phantomintegration.md spec (`/agents/save` + `/agents/launch` + cookie BYOK + mutex) if GTM wants "click and scrape" without PB's UI. Deferred; current fetch-only flow covers the need.
+- [x] **Lead sourcing — stay on Phantombuster + Sales Nav, no native scraper, no DB migration.** Decision 2026-06-03 (explored, settled): do **not** build a native LinkedIn scraper (it just pulls LinkedIn's ban surface + legal liability in-house — reverses the original fetch-only call) and do **not** migrate to a static B2B database (Apollo / Clay — they're stale and weak on prose fields like `summary`, which is exactly what qualification needs). Also evaluated **GetSales.io** and passed: it's an outreach-automation platform with scraping bolted on, carries the same session/cookie ban surface as PB, and its advertised extract fields omit the profile About/summary. **Direction:** upgrade to **LinkedIn Sales Navigator Enterprise/Advanced** (allows list exports), and extract via **Phantombuster (or Exa)** — favour *profile* scraping over Sales Nav *search export* because profile pages carry the About/summary that search-export rows don't (and it's a gentler detection vector, trading search-export fingerprinting for profile-view-velocity limits). PB continues to carry the ban-risk surface, consistent with the original fetch-only decision.
 - [ ] Google Sheets push — service-account auth, batched `values.append`. Sheet ID field already exists on campaigns. Was originally M4; Clay took priority.
   - *Question:* is this still wanted once Clay is in, or obsolete?
 - [ ] Resume button in UI when a campaign is `failed` (today it's a backend capability with no UI entry point).
