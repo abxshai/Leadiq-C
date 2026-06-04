@@ -6,7 +6,7 @@ short.
 
 Companion docs: [`DOCS.md`](./DOCS.md) (product + architecture), [`UI.md`](./UI.md) (design system: fonts, color tokens, component conventions, refresh candidates).
 
-*Last updated: 2026-06-03*
+*Last updated: 2026-06-04*
 
 ---
 
@@ -29,6 +29,8 @@ Companion docs: [`DOCS.md`](./DOCS.md) (product + architecture), [`UI.md`](./UI.
 **Dependency:** the common-DB owners (other team) need to ship `POST /api/leads` per the plan doc §2.2. Lead-IQ-side work can start against a stub once the contract is confirmed.
 
 **Plan doc:** [`cross-check-plan.md`](./cross-check-plan.md) — push contract, classifier rules, schema (`0006_lead_temperature.sql`), UI, worker hook.
+
+**Note (2026-06-04):** the HubSpot/Smartlead data now lives in the `crm` schema *inside this same Supabase project* (LeadQuery already reads it). That likely collapses the plan's external `POST /api/leads` round-trip into a **direct local JOIN** against `crm.gtm_contact_data` / `crm.smartlead_email_stats` to compute temperature — no common-DB HTTP contract, no BYOK key, no rate gate. Revisit the plan's §2 (push contract) and §6 (worker hook) against this before building; the classifier rules (§3) and UI (§4) are unaffected. Estimate below predates this simplification.
 
 **Estimate:** ~8 hours once the common-DB endpoint is reachable.
 
@@ -134,6 +136,9 @@ On the radar, not committed. Promote when a real trigger appears.
 ---
 
 ## Shipped
+
+**2026-06-04**
+- [x] **LeadQuery CRM access — agent reads the `crm` schema (HubSpot + Smartlead).** Extends M-AG1: the three SQL tools (`execute_sql`, `list_tables`, `get_table_schema`) are no longer scoped to `public` — they now also cover the `crm` schema synced by the separate ingest service: `crm.gtm_company_data` (~2.7k), `crm.gtm_contact_data` (~21k), `crm.gtm_deal_data` (~350), `crm.smartlead_email_stats` (~17k). Single source of truth `QUERYABLE_SCHEMAS = ['public','crm']` in `pg-pool.ts`; `execute_sql` sets `SET LOCAL search_path = public, crm` inside the existing read-only txn (so bare names hit `public` first, `crm.<table>` always works); `list_tables` / `get_table_schema` scan both schemas and surface `schema_name`. **No migration or grants** — the `postgres` pooler role the agent connects as already has `SELECT` on the `crm` tables (verified via `has_table_privilege`) and RLS is disabled there. **Read-only is unchanged** — `SET LOCAL transaction read only` is still the boundary; this only widens visibility. No FK columns exist between the CRM tables or to `leads`, so the prompt documents best-effort join keys (validated: the `hs_linkedin_url ↔ leads.default_profile_url` join matches 5,225 leads). Strictly inbound — Lead-IQ still pushes nothing to HubSpot. Deployed to Railway via commit `c8d8c15`.
 
 **2026-05-29**
 - [x] **M-AG1 — LeadQuery agent (chat + read-only SQL tools).** New `/chat` route + multi-agent registry; first agent **LeadQuery** answers natural-language questions with raw read-only SQL against `campaigns` / `leads` / `campaign_stats` via three MCP-style tools (`execute_sql`, `list_tables`, `get_table_schema`). Read-only enforced at the Postgres transaction level (`SET LOCAL transaction read only`); 10s statement timeout; 50-row result cap. SSE streaming with token-by-token assistant text + collapsible tool-call cards; Groq tool-call loop in `src/app/api/chat/conversations/[id]/messages/route.ts`. Migration `0005_chat_tables.sql` adds `chat_conversations` + `chat_messages` with RLS and Data API grants per project convention. New env var `SUPABASE_DB_URL` (transaction-pooler URI) — `DEPLOY.md` §8 documents the connection-string lookup. Embeddings + semantic similarity intentionally deferred to M-AG2; migration numbering reflects that (0006 = M-CX1, 0007 = M-AG2). Sidebar entry between Analytics and Settings (MessageSquare icon). Plan doc: [`agent-section-plan.md`](./agent-section-plan.md). Deployed to Railway via commit `e11b9c5`.

@@ -1,8 +1,10 @@
 # Lead-IQ — Touchpoint cross-check + lead temperature plan
 
-*Last updated: 2026-05-28*
+*Last updated: 2026-06-04*
 
 Companion docs: [`lead-iq-roadmap.md`](./lead-iq-roadmap.md), [`DOCS.md`](./DOCS.md), [`UI.md`](./UI.md).
+
+> **Heads-up (2026-06-04) — architecture likely simplifies.** This plan was written assuming the HubSpot/Smartlead data lives in an external "common-DB" reached over HTTP (`POST /api/leads`). It now lives in the **`crm` schema inside this same Supabase project** (`crm.gtm_contact_data`, `crm.gtm_deal_data`, `crm.smartlead_email_stats`, …), and LeadQuery already reads it (roadmap, 2026-06-04). That probably replaces the §2 push contract + §2.5 BYOK + §2.6 rate gate with a **direct local JOIN** in the worker to compute temperature. §3 (classifier rules), §4 (UI), and §5 (`0006_lead_temperature.sql` columns) still stand. Treat §2 and §6 as the parts to re-scope.
 
 ---
 
@@ -28,7 +30,7 @@ Lead-IQ produces a qualified-lead verdict per row but is blind to whether the GT
 - Smartlead → common-DB ingest
 - HubSpot → common-DB ingest
 - Server-side matching / dedup logic inside the common-DB
-- The chat / agents milestone (separate plan — see roadmap M-CX2)
+- The chat / agents milestone (separate plan — shipped as M-AG1; see [`agent-section-plan.md`](./agent-section-plan.md))
 - M3.5 `/leads` drilldown (separate; will inherit the Temperature column for free once shipped)
 
 ---
@@ -229,7 +231,7 @@ A new filter on the campaign-detail header: **Temperature: All / Hot / Warm / Co
 
 ## 5. Schema additions (Lead-IQ side)
 
-Migration `supabase/migrations/0006_lead_temperature.sql` — manual apply via the Supabase SQL editor, per project convention (see roadmap 2026-05-07 entry and prior migrations 0001–0004). Note: `0005` is reserved for the Agent section migration (`0005_chat_and_embeddings.sql`) per the locked Agent-first sequencing — see [`agent-section-plan.md`](./agent-section-plan.md) §12.
+Migration `supabase/migrations/0006_lead_temperature.sql` — manual apply via the Supabase SQL editor, per project convention (see roadmap 2026-05-07 entry and prior migrations 0001–0004). Note: `0005` shipped as the Agent-section migration (`0005_chat_tables.sql`) with M-AG1; embeddings split out to a later `0007_pgvector_embeddings.sql` (M-AG2) — see [`agent-section-plan.md`](./agent-section-plan.md) §12.
 
 ```sql
 alter table public.leads
@@ -246,7 +248,7 @@ create index leads_temperature_idx
 
 All columns are nullable so the migration is safe against existing rows; the worker populates them at qualification time, and the backfill button (§6.4) handles historical campaigns.
 
-**Supabase Data API grants — note for future migrations.** This migration is `alter table` only; no new table is created, so it's unaffected by Supabase's Oct 30, 2026 Data API default change (new tables on existing projects will need explicit `GRANT` statements after that date). For future migrations that DO create new tables (the next case is M-CX2 chat tables), follow the convention already established by `supabase/migrations/0004_campaign_stats_view.sql:32`:
+**Supabase Data API grants — note for future migrations.** This migration is `alter table` only; no new table is created, so it's unaffected by Supabase's Oct 30, 2026 Data API default change (new tables on existing projects will need explicit `GRANT` statements after that date). For future migrations that DO create new tables (the M-AG1 chat tables in `0005_chat_tables.sql` already followed this; the next case is M-AG2's `0007_pgvector_embeddings.sql`), follow the convention already established by `supabase/migrations/0004_campaign_stats_view.sql:32`:
 
 ```sql
 grant select, insert, update, delete on public.<new_table> to authenticated;

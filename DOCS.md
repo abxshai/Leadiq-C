@@ -121,11 +121,16 @@ Ask natural-language questions about your qualified leads ("How many
 decision-makers in May's Robotics campaign?", "Top 10 companies by
 qualified count this quarter") and the agent composes read-only SQL
 against `campaigns` / `leads` / `campaign_stats` via three MCP-style
-tools (`execute_sql`, `list_tables`, `get_table_schema`). Tool calls
-render as collapsible cards inline so you can audit the SQL and result.
-Responses stream token-by-token (SSE). Conversation history persists
-in `chat_messages`. Semantic similarity (concept-match without shared
-keywords) is intentionally deferred to M-AG2.
+tools (`execute_sql`, `list_tables`, `get_table_schema`). It can also
+read the `crm` schema — HubSpot contacts/companies/deals and Smartlead
+email engagement, synced in by a separate ingest service — so you can
+ask cross-source questions ("which qualified leads have already replied
+to a Smartlead campaign?", "show open HubSpot deals for accounts we
+just qualified"). Tool calls render as collapsible cards inline so you
+can audit the SQL and result. Responses stream token-by-token (SSE).
+Conversation history persists in `chat_messages`. Semantic similarity
+(concept-match without shared keywords) is intentionally deferred to
+M-AG2.
 
 ---
 
@@ -227,13 +232,15 @@ keywords) is intentionally deferred to M-AG2.
 - **Campaign analytics.** Qualification rates, seniority distribution,
   per-product-area breakdowns — all pulling directly from Supabase
   with no pre-aggregation job.
-- **LeadQuery agent — natural-language SQL over Lead-IQ data.**
+- **LeadQuery agent — natural-language SQL over Lead-IQ + CRM data.**
   Three MCP-style tools (`execute_sql`, `list_tables`,
-  `get_table_schema`) give the agent a small, predictable surface;
-  read-only is enforced at the Postgres transaction level
-  (`SET LOCAL transaction read only`) so even a malformed query can't
-  write. Results capped at 50 rows; statement timeout 10s. SSE
-  streaming with collapsible tool-call cards. Multi-agent registry
+  `get_table_schema`) give the agent a small, predictable surface over
+  the `public` schema (campaigns, leads, …) and the read-only `crm`
+  schema (HubSpot + Smartlead ingest); read-only is enforced at the
+  Postgres transaction level (`SET LOCAL transaction read only`) so
+  even a malformed query can't write. Results capped at 50 rows;
+  statement timeout 10s. SSE streaming with collapsible tool-call
+  cards. Multi-agent registry
   from day 1 — future agents (Touchpoint Retrieval after M-CX1,
   ICP-tuning suggestions, etc.) plug in as config rather than
   infrastructure. Semantic similarity deferred to M-AG2.
@@ -390,6 +397,13 @@ Groq openai/gpt-oss-120b (JSON mode)
   `chat_conversations` + `chat_messages` with RLS and Data API grants.
   New env: `SUPABASE_DB_URL` (transaction-pooler URI). Semantic
   similarity deferred to M-AG2.
+- **LeadQuery CRM access** — the agent's SQL tools now also reach the
+  `crm` schema (HubSpot contacts/companies/deals + Smartlead email
+  stats, synced by a separate ingest service). Read-only and visibility-
+  only: no migration or grants (the pooler role already has `SELECT`;
+  RLS is disabled on `crm`), and the read-only transaction boundary is
+  unchanged. Per-lead temperature write-back (hot/warm/cold) remains a
+  separate milestone (M-CX1).
 - Full campaign creation → run → export loop with rerun-failed support
 - **Filterable analytics dashboard** — time / bucket / campaign /
   business unit / ICP / company filters, KPI cards, time-series area

@@ -118,7 +118,7 @@ export const AGENTS: AgentConfig[] = [
 
 ### 4.1 Schema additions
 
-Migration `supabase/migrations/0005_chat_and_embeddings.sql` (manual SQL editor apply per convention):
+Migration `supabase/migrations/0007_pgvector_embeddings.sql` (manual SQL editor apply per convention; embeddings split out of the shipped `0005_chat_tables.sql` per §12):
 
 ```sql
 -- pgvector for semantic search
@@ -235,7 +235,7 @@ The hybrid pattern (semantic similarity + structured filters in the same query) 
 
 ## 6. Chat schema
 
-Continuing migration `0005_chat_and_embeddings.sql`:
+Migration `0005_chat_tables.sql` (shipped with M-AG1):
 
 ```sql
 create table public.chat_conversations (
