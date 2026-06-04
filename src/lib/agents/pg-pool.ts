@@ -1,6 +1,15 @@
 import "server-only";
 import postgres from "postgres";
 
+// Schemas the LeadQuery agent's tools are allowed to discover and query.
+// `public` = Lead-IQ's own tables; `crm` = the HubSpot / Smartlead ingest
+// (gtm_company_data, gtm_contact_data, gtm_deal_data, smartlead_email_stats),
+// owned by the crm_ingest role but SELECT-able by the postgres pooler role
+// this pool connects as. Read-only is still enforced per-transaction in the
+// tool handlers — this list only widens what's visible, not what's writable.
+// `as const` so the tuple's element type stays the literal union, not string[].
+export const QUERYABLE_SCHEMAS = ["public", "crm"] as const;
+
 // Postgres connection pool used by the LeadQuery agent's tools to run
 // arbitrary SELECT queries under a read-only transaction. Read-only is
 // enforced at the transaction level (SET LOCAL transaction read only),

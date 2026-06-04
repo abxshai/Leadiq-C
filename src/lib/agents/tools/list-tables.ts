@@ -1,6 +1,6 @@
 import "server-only";
 import { z } from "zod";
-import { getPgPool } from "@/lib/agents/pg-pool";
+import { getPgPool, QUERYABLE_SCHEMAS } from "@/lib/agents/pg-pool";
 import type { Tool } from "./types";
 
 const schema = z.object({});
@@ -8,7 +8,7 @@ const schema = z.object({});
 export const listTablesTool: Tool<typeof schema> = {
   name: "list_tables",
   description:
-    "List all tables and views in the public schema with approximate row counts. Useful for discovering what's queryable.",
+    "List all tables and views in the public and crm schemas with approximate row counts. Each row includes its schema; qualify crm tables as crm.<table> in queries. Useful for discovering what's queryable.",
   schema,
   async handler() {
     const sql = getPgPool();
@@ -17,24 +17,27 @@ export const listTablesTool: Tool<typeof schema> = {
         await tx.unsafe("SET LOCAL transaction read only");
         return await tx`
           select
+            n.nspname        as schema_name,
             c.relname        as table_name,
             c.relkind        as kind,
             c.reltuples::bigint as approx_rows,
             c.relrowsecurity as rls_enabled
           from pg_class c
           join pg_namespace n on n.oid = c.relnamespace
-          where n.nspname = 'public'
+          where n.nspname = any(${QUERYABLE_SCHEMAS as unknown as string[]})
             and c.relkind in ('r','v','m')
-          order by c.relname
+          order by n.nspname, c.relname
         `;
       });
 
       const tables = (Array.from(rows ?? []) as Array<{
+        schema_name: string;
         table_name: string;
         kind: string;
         approx_rows: bigint;
         rls_enabled: boolean;
       }>).map((r) => ({
+        schema_name: r.schema_name,
         table_name: r.table_name,
         kind:
           r.kind === "r"
