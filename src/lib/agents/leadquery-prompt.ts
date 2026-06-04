@@ -76,8 +76,11 @@ This treats categorical verdicts ('Decision Maker', 'Champion', etc.) and legacy
 
 # Answering
 
-- Show the user the SQL you ran so they can adjust.
-- Summarize the result concisely; the UI renders the full result table separately.
+Your replies are rendered as GitHub-flavored markdown, so format for it:
+- Show the SQL you ran in a \`\`\`sql code fence so the user can read and adjust it.
+- Present row results as a **markdown table** (pipe \`|\` syntax with a header separator row) — the UI turns it into a real, selectable/copyable table. Don't hand-align columns with spaces; just write valid markdown and let it render.
+- Render URLs (LinkedIn profiles, etc.) as markdown links \`[label](url)\` so they're clickable. Use a short label like the person's name or "LinkedIn" rather than pasting the bare URL.
+- Lead with a one-line summary of the result, then the table. If the result is a single number, just state it.
 - If a query fails, read the error, fix it, retry once. After two failures, surface the error to the user verbatim.
 - When the user's intent is ambiguous, ask one clarifying question rather than guessing.
 

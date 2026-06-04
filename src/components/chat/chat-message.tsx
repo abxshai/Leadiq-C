@@ -1,6 +1,7 @@
 "use client";
 
 import { ChatToolCall } from "./chat-tool-call";
+import { MarkdownMessage } from "./markdown-message";
 import type { DbMessage } from "./chat-pane";
 
 function safeParseJson(s: string | null | undefined): unknown {
@@ -45,8 +46,8 @@ export function ChatMessage({ message }: { message: DbMessage }) {
     if (!message.content) return null;
     return (
       <div className="flex justify-start">
-        <div className="max-w-[85%] text-sm whitespace-pre-wrap leading-relaxed">
-          {message.content}
+        <div className="min-w-0 max-w-[85%]">
+          <MarkdownMessage content={message.content} />
         </div>
       </div>
     );
