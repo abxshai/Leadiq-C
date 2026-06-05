@@ -402,7 +402,11 @@ Groq openai/gpt-oss-120b (JSON mode)
   (`classify_campaign_temperature`); the worker runs it at campaign
   completion (soft-fail — never gates qualification), and a "Cross-check
   leads" button re-runs it on demand. Join bridges leads→HubSpot contact (by
-  normalized LinkedIn URL) →Smartlead (by contact email).
+  normalized LinkedIn URL) →Smartlead (by contact email). The "Touchpoint
+  history" expand **cites the actual engagement** — each Smartlead email's
+  subject + action (sent/opened/clicked/replied) + date — and **deep-links**
+  to the Smartlead campaign and the HubSpot contact record (HubSpot link needs
+  `NEXT_PUBLIC_HUBSPOT_PORTAL_ID`; see `DEPLOY.md`).
 - **LeadQuery agent + chat surface (M-AG1)** — `/chat` route with
   natural-language → read-only SQL over `campaigns` / `leads` /
   `campaign_stats` via three MCP-style tools (`execute_sql`,

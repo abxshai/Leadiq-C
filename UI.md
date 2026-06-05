@@ -194,7 +194,7 @@ In the campaign-detail table, `LeadStatus`:
 | warm | `border-amber-500/40 bg-amber-500/10 text-amber-400` |
 | cold | `border-muted-foreground/30 text-muted-foreground` |
 
-The Temperature filter chips above the table reuse the active-pill style `border-primary/40 bg-primary/10 text-primary` (active) vs `border-border text-muted-foreground` (inactive) — same `Thermometer` lucide glyph as the row cells. The inline-expand "Touchpoint history" section reuses the existing prose-expand divider/label conventions (no new tokens).
+The Temperature filter chips above the table reuse the active-pill style `border-primary/40 bg-primary/10 text-primary` (active) vs `border-border text-muted-foreground` (inactive) — same `Thermometer` lucide glyph as the row cells. The inline-expand "Touchpoint history" section reuses the existing prose-expand divider/label conventions (no new tokens). Each cited Smartlead email shows an action verb color-coded by `actionColor` (replied → `text-emerald-400`, clicked → `text-primary`, opened → `text-amber-400`, sent → `text-muted-foreground`) with the subject quoted in `italic text-foreground/80` underneath. **Deep links** use `lucide:ExternalLink` (h-3) in `text-primary`: the HubSpot line links to the contact record (gated on `NEXT_PUBLIC_HUBSPOT_PORTAL_ID`), each Smartlead email links to its campaign (`{NEXT_PUBLIC_SMARTLEAD_BASE_URL|app.smartlead.ai}/app/email-campaigns-v2/{campaign_id}/leads?tab={action}`); both open in a new tab with `rel="noopener noreferrer"`.
 
 ### Forms
 
