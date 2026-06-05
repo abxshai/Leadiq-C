@@ -271,6 +271,17 @@ async function execute({
       return;
     }
 
+    // Cross-check qualified leads against the HubSpot/Smartlead `crm` schema
+    // and tag each hot/warm/cold (M-CX1). Pure local JOIN inside Postgres via
+    // the classifier function — runs once per campaign here. Done BEFORE the
+    // flip to `completed` on purpose: the campaign-detail page stops polling
+    // the moment it sees `completed`, so writing temperatures first means they
+    // are present on the very refresh that observes the finish — no reload, no
+    // race. SOFT-FAIL by design: temperature is enrichment, never a gate, so a
+    // CRM-side problem must never turn a successfully-qualified campaign into a
+    // failure (on error we just proceed to `completed` with blank temps).
+    await classifyTemperatureSoft(supabase, campaignId);
+
     await supabase
       .from("campaigns")
       .update({
@@ -280,13 +291,6 @@ async function execute({
         failed_count: failed,
       })
       .eq("id", campaignId);
-
-    // Cross-check qualified leads against the HubSpot/Smartlead `crm` schema
-    // and tag each hot/warm/cold (M-CX1). Pure local JOIN inside Postgres via
-    // the classifier function — runs once per campaign here. SOFT-FAIL by
-    // design: temperature is enrichment, never a gate, so a CRM-side problem
-    // must never turn a successfully-qualified campaign into a failure.
-    await classifyTemperatureSoft(supabase, campaignId);
   } catch (err) {
     await markFailed(
       supabase,
