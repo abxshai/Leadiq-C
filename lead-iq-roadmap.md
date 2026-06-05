@@ -6,7 +6,7 @@ short.
 
 Companion docs: [`DOCS.md`](./DOCS.md) (product + architecture), [`UI.md`](./UI.md) (design system: fonts, color tokens, component conventions, refresh candidates).
 
-*Last updated: 2026-06-04*
+*Last updated: 2026-06-05*
 
 ---
 
@@ -136,6 +136,9 @@ On the radar, not committed. Promote when a real trigger appears.
 ---
 
 ## Shipped
+
+**2026-06-05**
+- [x] **LeadQuery answers render as markdown (real tables + clickable links).** Assistant turns were raw `whitespace-pre-wrap` text, so the agent's pipe tables showed as literal `|` and links stayed as `[text](url)`. New `src/components/chat/markdown-message.tsx` renders assistant content as GitHub-flavored markdown (`react-markdown` + `remark-gfm`): pipe tables → real `<table>` (natively selectable / click-drag to copy, wide CRM results scroll horizontally inside the bubble), URLs → links that open in a new tab (`rel="noopener"`), SQL → code fences. XSS-safe — react-markdown allows no raw HTML, so the untrusted DB-derived summary text can't inject. User input stays plain text. The LeadQuery system prompt was updated in tandem to emit markdown tables / `[label](url)` links / ```sql fences. UI conventions logged in `UI.md`. Deps added: `react-markdown@9.1.0`, `remark-gfm@4.0.1`. Commit `371b0af`.
 
 **2026-06-04**
 - [x] **LeadQuery CRM access — agent reads the `crm` schema (HubSpot + Smartlead).** Extends M-AG1: the three SQL tools (`execute_sql`, `list_tables`, `get_table_schema`) are no longer scoped to `public` — they now also cover the `crm` schema synced by the separate ingest service: `crm.gtm_company_data` (~2.7k), `crm.gtm_contact_data` (~21k), `crm.gtm_deal_data` (~350), `crm.smartlead_email_stats` (~17k). Single source of truth `QUERYABLE_SCHEMAS = ['public','crm']` in `pg-pool.ts`; `execute_sql` sets `SET LOCAL search_path = public, crm` inside the existing read-only txn (so bare names hit `public` first, `crm.<table>` always works); `list_tables` / `get_table_schema` scan both schemas and surface `schema_name`. **No migration or grants** — the `postgres` pooler role the agent connects as already has `SELECT` on the `crm` tables (verified via `has_table_privilege`) and RLS is disabled there. **Read-only is unchanged** — `SET LOCAL transaction read only` is still the boundary; this only widens visibility. No FK columns exist between the CRM tables or to `leads`, so the prompt documents best-effort join keys (validated: the `hs_linkedin_url ↔ leads.default_profile_url` join matches 5,225 leads). Strictly inbound — Lead-IQ still pushes nothing to HubSpot. Deployed to Railway via commit `c8d8c15`.

@@ -127,7 +127,9 @@ email engagement, synced in by a separate ingest service — so you can
 ask cross-source questions ("which qualified leads have already replied
 to a Smartlead campaign?", "show open HubSpot deals for accounts we
 just qualified"). Tool calls render as collapsible cards inline so you
-can audit the SQL and result. Responses stream token-by-token (SSE).
+can audit the SQL and result. Answers render as formatted markdown —
+query results come back as real, selectable tables and LinkedIn/other
+URLs as clickable links. Responses stream token-by-token (SSE).
 Conversation history persists in `chat_messages`. Semantic similarity
 (concept-match without shared keywords) is intentionally deferred to
 M-AG2.
