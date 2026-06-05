@@ -280,6 +280,13 @@ async function execute({
         failed_count: failed,
       })
       .eq("id", campaignId);
+
+    // Cross-check qualified leads against the HubSpot/Smartlead `crm` schema
+    // and tag each hot/warm/cold (M-CX1). Pure local JOIN inside Postgres via
+    // the classifier function — runs once per campaign here. SOFT-FAIL by
+    // design: temperature is enrichment, never a gate, so a CRM-side problem
+    // must never turn a successfully-qualified campaign into a failure.
+    await classifyTemperatureSoft(supabase, campaignId);
   } catch (err) {
     await markFailed(
       supabase,
@@ -454,6 +461,39 @@ function tryParseAndValidate(
   return { ok: true, value: result.data };
 }
 
+/**
+ * Fire the campaign-level temperature cross-check (M-CX1). Soft-fail: any
+ * error is logged and swallowed so a flaky `crm` schema / RPC can never
+ * cascade into the campaign being marked failed. The campaign is already
+ * `completed` by the time this runs.
+ */
+async function classifyTemperatureSoft(
+  supabase: ReturnType<typeof createServiceSupabase>,
+  campaignId: string
+) {
+  try {
+    const { data, error } = await supabase.rpc(
+      "classify_campaign_temperature",
+      { p_campaign_id: campaignId }
+    );
+    if (error) {
+      console.error(
+        `[worker] temperature cross-check for ${campaignId} failed:`,
+        error.message
+      );
+      return;
+    }
+    console.log(
+      `[worker] temperature cross-check ${campaignId}: ${data ?? 0} leads classified`
+    );
+  } catch (err) {
+    console.error(
+      `[worker] temperature cross-check for ${campaignId} threw:`,
+      err instanceof Error ? err.message : err
+    );
+  }
+}
+
 async function markFailed(
   supabase: ReturnType<typeof createServiceSupabase>,
   campaignId: string,
@@ -466,7 +506,6 @@ async function markFailed(
       completed_at: new Date().toISOString(),
     })
     .eq("id", campaignId);
-  // eslint-disable-next-line no-console
   console.error(`[worker] campaign ${campaignId} failed:`, message);
 }
 

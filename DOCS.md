@@ -1,6 +1,6 @@
 # Lead-IQ — Product & Architecture Documentation
 
-*Last updated: 2026-05-29*
+*Last updated: 2026-06-05*
 
 Lead-IQ is an internal self-serve tool at Deccan AI that qualifies
 LinkedIn leads against a target Ideal Customer Profile (ICP) using a
@@ -389,6 +389,20 @@ Groq openai/gpt-oss-120b (JSON mode)
 ## 8. Current state
 
 **Shipped:**
+- **Smartlead/HubSpot cross-check + lead temperature (M-CX1)** — every
+  qualified lead is tagged **hot** / **warm** / **cold** by a direct local
+  JOIN against the `crm` schema (no external service — the HubSpot/Smartlead
+  data is already in this project). Hot = an active HubSpot pipeline stage
+  (opportunity/customer/evangelist) or a reply in the last 90 days; warm =
+  any outreach/engagement in the last 6 months; cold = otherwise / no CRM
+  match. New `Temperature` column + filter chip on the campaign-detail table,
+  and a "Touchpoint history" section in the inline-expand for hot/warm leads.
+  Migration `0006_lead_temperature.sql` adds `leads.temperature` +
+  `touchpoint_match jsonb` + a set-based classifier function
+  (`classify_campaign_temperature`); the worker runs it at campaign
+  completion (soft-fail — never gates qualification), and a "Cross-check
+  leads" button re-runs it on demand. Join bridges leads→HubSpot contact (by
+  normalized LinkedIn URL) →Smartlead (by contact email).
 - **LeadQuery agent + chat surface (M-AG1)** — `/chat` route with
   natural-language → read-only SQL over `campaigns` / `leads` /
   `campaign_stats` via three MCP-style tools (`execute_sql`,
@@ -478,7 +492,6 @@ Groq openai/gpt-oss-120b (JSON mode)
 - Space Mono + ASCII hero login page; password-based shared auth
 
 **Not yet shipped (roadmap):**
-- **Smartlead / HubSpot cross-check + lead temperature** *(M-CX1, next milestone)* — every qualified lead enriched with prior touchpoint history (last campaign + status + date) via a common-DB lookup, tagged **hot** / **warm** / **cold** based on the returned touchpoints. New `Temperature` column on the campaign-detail table; inline expand shows touchpoint history. Gated on another team shipping `POST /api/leads` per the contract in [`cross-check-plan.md`](./cross-check-plan.md).
 - **`/leads` view-only page + analytics drilldown deep-links** *(M3.5)* — cross-campaign lead browser with six-column schema (Name · Function · Domain · Seniority · ICP · LinkedIn), filter bar mirroring `/analytics` via URL params. Will inherit the M-CX1 Temperature column for free.
 - **Semantic similarity in LeadQuery** *(M-AG2)* — pgvector + Supabase gte-small embeddings + a `semantic_search_leads` tool. Lets the agent answer concept-match questions ("find leads about AI infra even if their title says 'ML platform engineer'"). Design lives in [`agent-section-plan.md`](./agent-section-plan.md) §4 + §8 (tagged **[M-AG2 — DEFERRED]**).
 - **Clay webhook push** *(M4 — parked 2026-05-28)* — Smartlead/HubSpot via M-CX1 covers the outreach pattern from the enrichment angle; revisit Clay if a push-style gap remains after M-CX1 ships.
@@ -494,6 +507,12 @@ Groq openai/gpt-oss-120b (JSON mode)
 - **Multi-tenant** — single-workspace mode for now, by choice.
 
 **Known limitations:**
+- Lead temperature (M-CX1) classifies a Smartlead reply as **hot** from
+  `reply_time` alone — it has no reply *content* (Smartlead's `lead_category`
+  is null in the ingest), so an out-of-office auto-reply is indistinguishable
+  from a genuine interested reply and gets tagged hot. Accepted for now; the
+  fix is gated on the ingest team landing a replies/threads table (see
+  roadmap backlog — "reply-content citations + OOO filtering").
 - A server restart while a campaign is running abandons the in-process
   worker — but the campaign is no longer stuck visibly: `instrumentation.ts`
   flips zombies to `canceled` (resumable) on the next boot. User just

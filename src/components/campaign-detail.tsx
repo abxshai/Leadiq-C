@@ -11,6 +11,8 @@ import {
   CheckCircle2,
   ChevronRight,
   ChevronDown,
+  Thermometer,
+  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -78,10 +80,84 @@ type Lead = {
   lead_summary: string | null;
   error: string | null;
   default_profile_url: string | null;
+  temperature: "hot" | "warm" | "cold" | null;
+  touchpoint_match: TouchpointMatch | null;
 };
 
+// Shape written by classify_campaign_temperature (migration 0006). Both
+// sub-objects are absent when the lead didn't match that source.
+type TouchpointMatch = {
+  hubspot?: {
+    contact_id?: number;
+    lifecyclestage?: string | null;
+    last_replied?: string | null;
+    notes_last_updated?: string | null;
+  };
+  smartlead?: {
+    campaigns?: string[];
+    last_reply?: string | null;
+    last_open?: string | null;
+    last_click?: string | null;
+    last_sent?: string | null;
+    bounced?: boolean;
+    unsubscribed?: boolean;
+    events?: TouchpointEvent[];
+  };
+  last_activity?: string | null;
+} | null;
+
+// One concrete Smartlead touchpoint — the citation of an actual email.
+type TouchpointEvent = {
+  date?: string | null;
+  action?: "sent" | "opened" | "clicked" | "replied";
+  campaign?: string | null;
+  campaign_id?: number | null;
+  subject?: string | null;
+  opens?: number;
+  clicks?: number;
+};
+
+// Deep-link config. HubSpot's portal ID is account-specific and not in the
+// CRM data, so it comes from env (link is omitted when unset). Smartlead is a
+// fixed cloud host.
+const HUBSPOT_PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID;
+const SMARTLEAD_BASE =
+  process.env.NEXT_PUBLIC_SMARTLEAD_BASE_URL ?? "https://app.smartlead.ai";
+
+function hubspotContactUrl(contactId?: number): string | null {
+  if (!HUBSPOT_PORTAL_ID || !contactId) return null;
+  // 0-1 = HubSpot's object-type id for contacts.
+  return `https://app.hubspot.com/contacts/${HUBSPOT_PORTAL_ID}/record/0-1/${contactId}`;
+}
+
+const smartleadTab: Record<NonNullable<TouchpointEvent["action"]>, string> = {
+  replied: "replied",
+  clicked: "clicked",
+  opened: "opened",
+  sent: "",
+};
+
+function smartleadCampaignUrl(
+  campaignId?: number | null,
+  action?: TouchpointEvent["action"]
+): string | null {
+  if (!campaignId) return null;
+  const tab = action ? smartleadTab[action] : "";
+  return `${SMARTLEAD_BASE}/app/email-campaigns-v2/${campaignId}/leads${
+    tab ? `?tab=${tab}` : ""
+  }`;
+}
+
+type Temperature = "hot" | "warm" | "cold";
+
 const LEAD_COLS =
-  "id, full_name, title, company_name, status, function_qualification, function_reasoning, icp_qualification, seniority_scoring, domain_classification, subdomain, subdomain_justification, domain_reasoning, priority_level, product_area, lead_summary, error, default_profile_url";
+  "id, full_name, title, company_name, status, function_qualification, function_reasoning, icp_qualification, seniority_scoring, domain_classification, subdomain, subdomain_justification, domain_reasoning, priority_level, product_area, lead_summary, error, default_profile_url, temperature, touchpoint_match";
+
+const temperatureBadge: Record<Temperature, string> = {
+  hot: "border-red-500/40 bg-red-500/10 text-red-400",
+  warm: "border-amber-500/40 bg-amber-500/10 text-amber-400",
+  cold: "border-muted-foreground/30 text-muted-foreground",
+};
 
 const statusColor: Record<Campaign["status"], string> = {
   pending: "border-muted-foreground/30 text-muted-foreground",
@@ -107,6 +183,8 @@ export function CampaignDetail({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
+  const [crossChecking, setCrossChecking] = useState(false);
+  const [tempFilter, setTempFilter] = useState<Temperature | "all">("all");
   const apiKey = useGroqStore((s) => s.apiKey);
 
   function toggleExpand(id: string) {
@@ -198,10 +276,51 @@ export function CampaignDetail({
     }
   }
 
+  async function onCrossCheck() {
+    setCrossChecking(true);
+    setRunError(null);
+    try {
+      const res = await fetch(`/api/campaigns/${campaign.id}/cross-check`, {
+        method: "POST",
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        setRunError(body.error ?? `Server responded ${res.status}`);
+        return;
+      }
+      await refresh();
+    } catch (err) {
+      setRunError(err instanceof Error ? err.message : "Network error");
+    } finally {
+      setCrossChecking(false);
+    }
+  }
+
   const canStart =
     campaign.status === "pending" ||
     campaign.status === "failed" ||
     campaign.status === "canceled";
+
+  // Temperature is only meaningful for qualified leads that have been
+  // cross-checked. Show the cross-check button once the run has produced
+  // leads (i.e. not while pending/empty).
+  const crossCheckable =
+    campaign.status === "completed" || stats.touched_count > 0;
+
+  const tempCounts = leads.reduce(
+    (acc, l) => {
+      if (l.temperature) acc[l.temperature] += 1;
+      return acc;
+    },
+    { hot: 0, warm: 0, cold: 0 } as Record<Temperature, number>
+  );
+  const anyTemperature =
+    tempCounts.hot + tempCounts.warm + tempCounts.cold > 0;
+
+  const visibleLeads =
+    tempFilter === "all"
+      ? leads
+      : leads.filter((l) => l.temperature === tempFilter);
 
   return (
     <div className="space-y-6">
@@ -225,6 +344,22 @@ export function CampaignDetail({
         </div>
 
         <div className="flex items-center gap-2">
+          {crossCheckable ? (
+            <Button
+              variant="outline"
+              onClick={onCrossCheck}
+              disabled={crossChecking}
+              className="gap-2"
+              title="Cross-check qualified leads against HubSpot + Smartlead and tag hot / warm / cold"
+            >
+              {crossChecking ? (
+                <Loader2 className="h-4 w-4 animate-spin" />
+              ) : (
+                <RefreshCw className="h-4 w-4" />
+              )}
+              {anyTemperature ? "Re-cross-check" : "Cross-check leads"}
+            </Button>
+          ) : null}
           <DropdownMenu>
             <DropdownMenuTrigger
               className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm hover:bg-muted transition-colors"
@@ -338,6 +473,33 @@ export function CampaignDetail({
         </div>
       ) : null}
 
+      {anyTemperature ? (
+        <div className="flex items-center gap-2 text-xs">
+          <Thermometer className="h-3.5 w-3.5 text-muted-foreground" />
+          {(["all", "hot", "warm", "cold"] as const).map((t) => {
+            const active = tempFilter === t;
+            const count =
+              t === "all"
+                ? tempCounts.hot + tempCounts.warm + tempCounts.cold
+                : tempCounts[t];
+            return (
+              <button
+                key={t}
+                onClick={() => setTempFilter(t)}
+                className={cn(
+                  "rounded-full border px-2.5 py-1 capitalize transition-colors",
+                  active
+                    ? "border-primary/40 bg-primary/10 text-primary"
+                    : "border-border text-muted-foreground hover:bg-muted"
+                )}
+              >
+                {t} {t === "all" ? "" : `(${count})`}
+              </button>
+            );
+          })}
+        </div>
+      ) : null}
+
       <div className="rounded-lg border border-border bg-card/30 overflow-hidden">
         <Table>
           <TableHeader>
@@ -347,6 +509,7 @@ export function CampaignDetail({
               <TableHead>Role</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Qualified</TableHead>
+              <TableHead>Temp</TableHead>
               <TableHead>ICP</TableHead>
               <TableHead>Seniority</TableHead>
               <TableHead>Domain</TableHead>
@@ -356,14 +519,18 @@ export function CampaignDetail({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {leads.map((l) => {
+            {visibleLeads.map((l) => {
               const isOpen = expanded.has(l.id);
+              const hasTouchpoints =
+                (l.temperature === "hot" || l.temperature === "warm") &&
+                l.touchpoint_match != null;
               const hasDetail =
                 l.function_reasoning ||
                 l.subdomain_justification ||
                 l.domain_reasoning ||
                 l.lead_summary ||
-                l.error;
+                l.error ||
+                hasTouchpoints;
               return (
                 <Fragment key={l.id}>
                   <TableRow
@@ -393,6 +560,9 @@ export function CampaignDetail({
                     </TableCell>
                     <TableCell>
                       <FunctionVerdict value={l.function_qualification} />
+                    </TableCell>
+                    <TableCell>
+                      <TemperatureBadge value={l.temperature} />
                     </TableCell>
                     <TableCell className="truncate max-w-[140px]">
                       {l.icp_qualification ?? (
@@ -436,7 +606,7 @@ export function CampaignDetail({
                   {isOpen && hasDetail ? (
                     <TableRow className="bg-muted/20 hover:bg-muted/20">
                       <TableCell></TableCell>
-                      <TableCell colSpan={10} className="py-4">
+                      <TableCell colSpan={11} className="py-4">
                         <DetailGrid lead={l} />
                       </TableCell>
                     </TableRow>
@@ -461,6 +631,9 @@ function DetailGrid({ lead }: { lead: Lead }) {
     { label: "Lead summary", value: lead.lead_summary },
   ];
   const filled = sections.filter((s) => s.value && s.value.trim().length > 0);
+  const showTouchpoints =
+    (lead.temperature === "hot" || lead.temperature === "warm") &&
+    lead.touchpoint_match != null;
 
   return (
     <div className="space-y-3 text-xs">
@@ -474,7 +647,7 @@ function DetailGrid({ lead }: { lead: Lead }) {
           </div>
         </div>
       ) : null}
-      {filled.length === 0 && !lead.error ? (
+      {filled.length === 0 && !lead.error && !showTouchpoints ? (
         <div className="text-muted-foreground italic">
           No additional detail captured for this lead.
         </div>
@@ -491,6 +664,157 @@ function DetailGrid({ lead }: { lead: Lead }) {
           </div>
         ))}
       </div>
+      {showTouchpoints ? (
+        <TouchpointHistory
+          temperature={lead.temperature as Temperature}
+          match={lead.touchpoint_match!}
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function TemperatureBadge({ value }: { value: Temperature | null }) {
+  if (value == null) return <span className="text-muted-foreground">—</span>;
+  return (
+    <Badge
+      variant="outline"
+      className={cn("capitalize", temperatureBadge[value])}
+    >
+      {value}
+    </Badge>
+  );
+}
+
+function fmtDate(iso?: string | null): string | null {
+  if (!iso) return null;
+  const d = new Date(iso);
+  if (Number.isNaN(d.getTime())) return null;
+  return d.toISOString().slice(0, 10);
+}
+
+const actionColor: Record<
+  NonNullable<TouchpointEvent["action"]>,
+  string
+> = {
+  replied: "text-emerald-400",
+  clicked: "text-primary",
+  opened: "text-amber-400",
+  sent: "text-muted-foreground",
+};
+const actionVerb: Record<NonNullable<TouchpointEvent["action"]>, string> = {
+  replied: "Replied to",
+  clicked: "Clicked",
+  opened: "Opened",
+  sent: "Sent",
+};
+
+// Renders the HubSpot + Smartlead evidence captured by
+// classify_campaign_temperature, mirroring the prose-expand pattern: a
+// divider, a header with the temperature badge, then a cited list of the
+// actual touchpoints (each Smartlead email's subject + what happened + when),
+// most-recent first.
+function TouchpointHistory({
+  temperature,
+  match,
+}: {
+  temperature: Temperature;
+  match: NonNullable<TouchpointMatch>;
+}) {
+  const hs = match.hubspot;
+  const sl = match.smartlead;
+  const events = sl?.events ?? [];
+
+  return (
+    <div className="border-t border-border pt-3">
+      <div className="flex items-center gap-2 mb-2">
+        <span className="font-medium uppercase tracking-wide text-[10px] text-muted-foreground">
+          Touchpoint history
+        </span>
+        <TemperatureBadge value={temperature} />
+      </div>
+
+      {hs ? (
+        <div className="mb-2 text-foreground/90">
+          <span className="text-muted-foreground">HubSpot:</span>{" "}
+          {hs.lifecyclestage ? (
+            <span className="capitalize">{hs.lifecyclestage}</span>
+          ) : (
+            "contact"
+          )}
+          {hs.last_replied ? (
+            <span className="text-muted-foreground">
+              {" "}
+              · replied {fmtDate(hs.last_replied)}
+            </span>
+          ) : null}
+          {hubspotContactUrl(hs.contact_id) ? (
+            <a
+              href={hubspotContactUrl(hs.contact_id)!}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="ml-2 inline-flex items-center gap-0.5 text-primary hover:underline"
+            >
+              View in HubSpot
+              <ExternalLink className="h-3 w-3" />
+            </a>
+          ) : null}
+        </div>
+      ) : null}
+
+      {events.length > 0 ? (
+        <ul className="space-y-2">
+          {events.map((e, i) => {
+            const action = e.action ?? "sent";
+            const url = smartleadCampaignUrl(e.campaign_id, action);
+            return (
+              <li key={i} className="flex gap-2 leading-snug">
+                <span className="text-muted-foreground tabular-nums shrink-0 w-[5rem]">
+                  {fmtDate(e.date) ?? "—"}
+                </span>
+                <span className="min-w-0">
+                  <span className={cn("font-medium", actionColor[action])}>
+                    {actionVerb[action]}
+                  </span>
+                  {e.campaign ? (
+                    url ? (
+                      <a
+                        href={url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-muted-foreground hover:text-primary hover:underline"
+                      >
+                        {" "}
+                        · {e.campaign}
+                        <ExternalLink className="ml-0.5 inline h-3 w-3 align-text-top" />
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground"> · {e.campaign}</span>
+                    )
+                  ) : null}
+                  {e.subject ? (
+                    <span className="block text-foreground/80 italic truncate">
+                      “{e.subject}”
+                    </span>
+                  ) : null}
+                </span>
+              </li>
+            );
+          })}
+        </ul>
+      ) : sl ? (
+        <div className="text-muted-foreground">
+          Smartlead: {sl.campaigns?.join(", ") ?? "engaged"}
+        </div>
+      ) : null}
+
+      {sl && (sl.bounced || sl.unsubscribed) ? (
+        <div className="mt-2 text-[11px] text-muted-foreground">
+          {[sl.bounced ? "bounced" : null, sl.unsubscribed ? "unsubscribed" : null]
+            .filter(Boolean)
+            .join(" · ")}
+        </div>
+      ) : null}
     </div>
   );
 }

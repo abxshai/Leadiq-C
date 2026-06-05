@@ -1,10 +1,16 @@
 # Lead-IQ — Touchpoint cross-check + lead temperature plan
 
-*Last updated: 2026-06-04*
+*Last updated: 2026-06-05*
 
 Companion docs: [`lead-iq-roadmap.md`](./lead-iq-roadmap.md), [`DOCS.md`](./DOCS.md), [`UI.md`](./UI.md).
 
-> **Heads-up (2026-06-04) — architecture likely simplifies.** This plan was written assuming the HubSpot/Smartlead data lives in an external "common-DB" reached over HTTP (`POST /api/leads`). It now lives in the **`crm` schema inside this same Supabase project** (`crm.gtm_contact_data`, `crm.gtm_deal_data`, `crm.smartlead_email_stats`, …), and LeadQuery already reads it (roadmap, 2026-06-04). That probably replaces the §2 push contract + §2.5 BYOK + §2.6 rate gate with a **direct local JOIN** in the worker to compute temperature. §3 (classifier rules), §4 (UI), and §5 (`0006_lead_temperature.sql` columns) still stand. Treat §2 and §6 as the parts to re-scope.
+> **SHIPPED 2026-06-05 (M-CX1) — as a direct local JOIN, NOT the HTTP design below.** The HubSpot/Smartlead data lives in the **`crm` schema inside this same Supabase project**, so the cross-check became a pure set-based SQL JOIN, collapsing **§2 (push contract), §2.5 (BYOK), §2.6 (rate gate), and §9 (external-team dependencies) — all DROPPED, never built.** What shipped vs. this plan:
+> - **§3 classifier rules → superseded.** Final rules (see roadmap 2026-06-05): hot = HubSpot lifecyclestage ∈ (opportunity/customer/evangelist) OR reply (HubSpot or Smartlead) in last 90 days; warm = any outreach/engagement in last 6 months; cold = otherwise. `smartlead_email_stats.lead_category` is 100% null, so the §3.2 "positive_reply category" rule was replaced by timestamp/flag columns. HubSpot deals are unused (no contact key on `gtm_deal_data`).
+> - **§4 UI → shipped as described** (Temp column, filter chip, touchpoint-history expand) — minus the per-row failure indicator (§4 / §7 Q3), which is moot without HTTP failures.
+> - **§5 schema → shipped** as `0006_lead_temperature.sql` (`temperature` + `touchpoint_match jsonb` + `touchpoint_checked_at` + partial index), plus a `classify_campaign_temperature(uuid)` SECURITY DEFINER function and an apply-time backfill of all existing campaigns.
+> - **§6 worker hook → shipped** but trivial: one soft-fail `supabase.rpc('classify_campaign_temperature', …)` call after the completion gate (no per-lead `pendingChecks`, no `X-Lookup-Key` header). Backfill is `POST /api/campaigns/[id]/cross-check`.
+>
+> The sections below are kept for historical context (the contract we'd have needed had the data stayed external). Read the roadmap's 2026-06-05 Shipped entry for what actually exists.
 
 ---
 

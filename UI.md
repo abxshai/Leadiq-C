@@ -186,6 +186,16 @@ In the campaign-detail table, `LeadStatus`:
 
 `FunctionVerdict` (the categorical "Qualified" cell): null → muted dash, "NO" → muted, "YES" → emerald-400 with checkmark icon, anything else → emerald-400 with the literal value.
 
+`TemperatureBadge` (the "Temp" cell, M-CX1) — outline Badge, `capitalize`, per `temperatureBadge` map in `campaign-detail.tsx`; null → muted dash:
+
+| Temperature | Tailwind |
+|---|---|
+| hot | `border-red-500/40 bg-red-500/10 text-red-400` |
+| warm | `border-amber-500/40 bg-amber-500/10 text-amber-400` |
+| cold | `border-muted-foreground/30 text-muted-foreground` |
+
+The Temperature filter chips above the table reuse the active-pill style `border-primary/40 bg-primary/10 text-primary` (active) vs `border-border text-muted-foreground` (inactive) — same `Thermometer` lucide glyph as the row cells. The inline-expand "Touchpoint history" section reuses the existing prose-expand divider/label conventions (no new tokens).
+
 ### Forms
 
 - Inputs: `src/components/ui/input.tsx` — `border-input bg-transparent rounded-lg`.
