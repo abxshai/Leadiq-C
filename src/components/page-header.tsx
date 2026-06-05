@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { ScrambleText } from "@/components/scramble-text";
 
 export function PageHeader({
   title,
@@ -19,8 +20,8 @@ export function PageHeader({
       )}
     >
       <div className="space-y-1">
-        <h1 className="font-display font-stretch-expanded text-3xl font-semibold uppercase tracking-wide leading-tight text-primary">
-          {title}
+        <h1 className="font-display text-3xl lowercase tracking-wide leading-tight text-primary [-webkit-text-stroke:0.6px_currentColor]">
+          <ScrambleText text={title} />
         </h1>
         {description ? (
           <p className="text-sm text-muted-foreground max-w-2xl">

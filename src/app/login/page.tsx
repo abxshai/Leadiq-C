@@ -53,17 +53,18 @@ export default function LoginPage() {
         {/* Hero row: title left, ASCII right */}
         <div className="grid gap-10 sm:gap-32 sm:grid-cols-[1fr_1.5fr] items-center mb-10">
           <div className="space-y-3">
-            <Image
-              src="/logowhite.png"
-              alt=""
-              width={220}
-              height={68}
-              priority
-              className="h-12 w-auto object-contain mb-2"
-            />
-            <h1 className="font-display font-stretch-expanded text-4xl sm:text-5xl font-semibold uppercase tracking-wide leading-none">
+            <h1 className="relative inline-block font-display text-4xl sm:text-5xl lowercase tracking-wide leading-none [-webkit-text-stroke:0.7px_currentColor]">
               lead-
               <span className="text-primary">IQ</span>
+              {/* Deccan logo at the top-right corner of the wordmark. */}
+              <Image
+                src="/logowhite.png"
+                alt="Lead-IQ"
+                width={220}
+                height={68}
+                priority
+                className="pointer-events-none absolute left-full top-0 ml-2 -translate-y-1/3 h-5 w-auto object-contain"
+              />
             </h1>
             <p className="text-sm text-muted-foreground max-w-sm">
               Qualify LinkedIn leads against your ICP with Groq&apos;s

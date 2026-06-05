@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { JetBrains_Mono, Archivo } from "next/font/google";
+import { JetBrains_Mono, Major_Mono_Display } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
@@ -11,16 +11,14 @@ const jetbrainsMono = JetBrains_Mono({
   weight: ["400", "500", "700"],
 });
 
-// Archivo (variable, incl. the `wdth` width axis) — headings + subheadings
-// only, via `--font-display` (page H1s) and `--font-heading` (Card/Dialog
-// titles). A free stand-in for Neue Plak Wide SemiBold: heading elements set
-// `font-stretch-expanded` (wdth 125) + `font-semibold` + `uppercase`. Drop a
-// licensed Neue Plak .woff2 in and repoint these tokens to swap for the real
-// thing.
-const archivo = Archivo({
+// Major Mono Display — headings + subheadings only, via `--font-display` (page
+// H1s) and `--font-heading` (Card/Dialog titles). A geometric display
+// monospace; single weight (400). Heading elements add `uppercase` +
+// `tracking-wide`. Body stays JetBrains Mono.
+const majorMono = Major_Mono_Display({
   variable: "--font-display",
   subsets: ["latin"],
-  axes: ["wdth"],
+  weight: "400",
 });
 
 export const metadata: Metadata = {
@@ -38,7 +36,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${jetbrainsMono.variable} ${archivo.variable} h-full antialiased`}
+      className={`${jetbrainsMono.variable} ${majorMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <ThemeProvider

@@ -1,6 +1,7 @@
 import { redirect } from "next/navigation";
 import { createServerSupabase } from "@/lib/supabase/server";
 import { ChatPane, type DbMessage } from "@/components/chat/chat-pane";
+import { ScrambleText } from "@/components/scramble-text";
 
 // Server component. Auth + locate-or-create a conversation for the current
 // user, then hand to the client ChatPane with the initial message list.
@@ -70,8 +71,8 @@ export default async function ChatPage({
   return (
     <div className="flex flex-col gap-6 h-full">
       <div>
-        <h1 className="font-display font-stretch-expanded text-3xl font-semibold uppercase tracking-wide leading-tight text-primary">
-          LeadQuery
+        <h1 className="font-display text-3xl lowercase tracking-wide leading-tight text-primary [-webkit-text-stroke:0.6px_currentColor]">
+          <ScrambleText text="LeadQuery" />
         </h1>
         <p className="text-sm text-muted-foreground mt-1">
           Ask in natural language. Read-only SQL over your campaigns and leads.

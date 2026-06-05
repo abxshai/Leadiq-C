@@ -35,18 +35,20 @@ For product / architecture context, see [`DOCS.md`](./DOCS.md). For shipped/queu
 
 ## 3. Fonts
 
-**Two faces:** JetBrains Mono (body + mono accents) and Archivo (headings + subheadings). Both via `next/font/google` in `src/app/layout.tsx`; tokens mapped in `globals.css @theme inline`.
+**Two faces:** JetBrains Mono (body + mono accents) and Major Mono Display (headings + subheadings). Both via `next/font/google` in `src/app/layout.tsx`; tokens mapped in `globals.css @theme inline`.
 
 | Token | Family | Used for | Notes |
 |---|---|---|---|
 | `--font-mono` | **JetBrains Mono** (400 / 500 / 700) | The loaded mono var. | Font object's `variable`. |
 | `--font-sans` | → `var(--font-mono)` | Body, paragraphs, table cells, KPI labels, all prose. | Default body face. |
-| `--font-display` | **Archivo** (variable, incl. `wdth` axis) | Page H1 titles (`PageHeader`, chat, login). | Font object's `variable`. |
+| `--font-display` | **Major Mono Display** (400 only) | Page H1 titles (`PageHeader`, chat, login) + the sidebar/login "Lead-IQ" wordmark. | Geometric display monospace. |
 | `--font-heading` | → `var(--font-display)` | Card / Dialog / AlertDialog titles ("subheadings"). | |
 
-**Heading treatment = a free stand-in for Neue Plak Wide SemiBold caps.** Every heading element composes `font-display` (or `font-heading`) + `font-stretch-expanded` (Archivo `wdth` 125 — its max) + `font-semibold` + `uppercase` + `tracking-wide`. Sizes: `PageHeader` + chat H1 = `text-3xl`; login hero H1 = `text-4xl sm:text-5xl`; Card/Dialog titles = `text-base`. To swap in real Neue Plak, drop a licensed `.woff2` in `src/app/fonts/` and repoint `--font-display`.
+**Heading treatment.** Every heading element composes `font-display` (or `font-heading`) + **`lowercase`** + `tracking-wide`. The `lowercase` is deliberate: Major Mono Display maps lowercase input to clean capital glyphs, while *uppercase* input triggers its heavy "filled" alternates — so we type/transform to lowercase to get normal caps. Since the font ships only weight 400, extra weight comes from a same-color text-stroke (`[-webkit-text-stroke:Npx_currentColor]`): `0.6px` page H1s, `0.7px` login hero, `0.3px` card/dialog titles, `0.35px` sidebar wordmark. Sizes: `PageHeader` + chat H1 = `text-3xl`; login hero = `text-4xl sm:text-5xl`; Card/Dialog + sidebar wordmark = `text-base`.
 
-**History:** JetBrains Mono came from [aiengineeringfromscratch.com](https://aiengineeringfromscratch.com/) (cloned 2026-05-13). On **2026-06-05** it replaced **Space Mono** (body) and **VT323** (display) as the app-wide face. On **2026-06-06**, headings/subheadings moved to **Archivo** (expanded/semibold/caps) as a free substitute for Neue Plak Wide SemiBold (Monotype, not Google-hosted); body stays JetBrains Mono. (Trial detour: Pixelify Sans as a Mondwest stand-in — rejected as a poor fit.)
+**Decode animation.** Page H1s wrap their text in `<ScrambleText>` (`src/components/scramble-text.tsx`) — a glyph-scramble/decode that runs on mount and re-loops every 10s (hover trigger was removed for jitter). Animated glyphs are overlaid on an invisible full-text sizer so the decode never shifts layout; SSR/screen-reader safe (`aria-label`); honors `prefers-reduced-motion`.
+
+**History:** JetBrains Mono came from [aiengineeringfromscratch.com](https://aiengineeringfromscratch.com/) (2026-05-13). On **2026-06-05** it replaced Space Mono (body) + VT323 (display) app-wide. On **2026-06-06** headings/subheadings moved to **Major Mono Display** (lowercase→caps, text-stroke for weight). Trial detours, all rejected: Pixelify Sans (Mondwest stand-in), Archivo expanded (Neue Plak Wide SemiBold stand-in — Neue Plak is Monotype/non-Google; can still drop a licensed `.woff2` in `src/app/fonts/` and repoint `--font-display` if wanted), Horizon (not on Google Fonts).
 
 ---
 
@@ -71,14 +73,14 @@ Both themes declared in `src/app/globals.css`. Colors in OKLCH so hue / chroma s
 
 ### Brand
 
-Brand color is **#3dcbff** cyan (OKLCH hue ~230), adopted 2026-06-05 (replacing the #4E8CFA indigo). It is **not** unified across themes: dark mode uses the literal #3dcbff (`oklch(0.79 0.138 230)`); light mode darkens it to `oklch(0.6 0.15 230)` so headings/buttons stay readable on the near-white canvas. Because the dark cyan is so bright, `--primary-foreground` flips to **dark** in dark mode (white-on-#3dcbff fails contrast; dark-on-cyan reads ~10:1).
+Brand color is **#6bb3ff** sky-blue (OKLCH hue ~251), adopted 2026-06-06 (after iterating through #3dcbff cyan → #52b7ff → #3d70a6, all rejected). **Not** unified across themes: dark mode uses the literal #6bb3ff (`oklch(0.751 0.132 251)`); light mode deepens to `oklch(0.55 0.14 251)` so headings/buttons stay readable on the near-white canvas. Because #6bb3ff is bright, `--primary-foreground` is **dark** in dark mode (white-on-#6bb3ff fails contrast); light mode's deeper blue uses white foreground.
 
 | Token | Light | Dark | Used for |
 |---|---|---|---|
-| `--primary` | `oklch(0.6 0.15 230)` | `oklch(0.79 0.138 230)` | **#3dcbff** cyan (dark) / darker cyan (light). Buttons, focus rings, page H1 titles, qualified badges, primary chart series, sidebar primary surfaces. |
-| `--primary-foreground` | `oklch(0.99 0 0)` (white) | `oklch(0.18 0.02 240)` (dark) | Text/icons on primary surfaces. **Dark in dark mode** so button text reads on bright cyan. |
-| `--border` | `oklch(0.6 0.15 230 / 0.18)` | `oklch(0.79 0.138 230 / 0.18)` | Brand-tinted borders. |
-| `--ring` | `oklch(0.6 0.15 230 / 0.6)` | `oklch(0.79 0.138 230 / 0.6)` | Focus rings (3px). |
+| `--primary` | `oklch(0.55 0.14 251)` | `oklch(0.751 0.132 251)` | **#6bb3ff** sky-blue (dark) / deeper blue (light). Buttons, focus rings, page H1 titles, qualified badges, primary chart series, sidebar primary surfaces. |
+| `--primary-foreground` | `oklch(0.99 0 0)` (white) | `oklch(0.18 0.02 240)` (dark) | Text/icons on primary surfaces. **Dark in dark mode** so button text reads on the bright blue. |
+| `--border` | `oklch(0.55 0.14 251 / 0.22)` | `oklch(0.751 0.132 251 / 0.2)` | Brand-tinted borders. |
+| `--ring` | `oklch(0.55 0.14 251 / 0.55)` | `oklch(0.751 0.132 251 / 0.6)` | Focus rings (3px). |
 | `--input` | `oklch(0.18 0.02 240 / 0.08)` | `oklch(1 0 0 / 0.08)` | Input field fills (kept neutral; not on the brand hue). |
 | `--card-glow` | `0 0 0 1px rgb(0 0 0 / 0.04), 0 6px 20px -6px rgb(0 0 0 / 0.18)` | identical | Subtle dark-grey halo on cards. Applied in `card.tsx` via `shadow-[var(--card-glow)]` alongside the existing `ring-1 ring-foreground/10`. |
 
@@ -86,7 +88,7 @@ Brand color is **#3dcbff** cyan (OKLCH hue ~230), adopted 2026-06-05 (replacing 
 
 | Token | Light | Dark | Used for |
 |---|---|---|---|
-| `--chart-1` | `oklch(0.6 0.15 230)` | `oklch(0.79 0.138 230)` | Primary series (qualified leads, dominant bar fills). Tracks `--primary` (cyan). |
+| `--chart-1` | `oklch(0.55 0.14 251)` | `oklch(0.751 0.132 251)` | Primary series (qualified leads, dominant bar fills). Tracks `--primary` (sky-blue). |
 | `--chart-2` | `oklch(0.7 0.13 210)` | `oklch(0.78 0.13 210)` | Cyan-ish second series. |
 | `--chart-3` | `oklch(0.5 0.18 258)` | `oklch(0.55 0.18 258)` | Indigo / purple-ish third series. |
 | `--chart-4` | `oklch(0.78 0.05 240)` | `oklch(0.4 0.05 240)` | Muted / "not qualified" overlay (desaturated). |
@@ -98,28 +100,28 @@ shadcn's `ChartContainer` re-emits the per-key chart vars as `--color-{key}` so 
 
 ### Sidebar
 
-`--sidebar-*` family (8 tokens) for the left rail. Surface / foreground / border tokens stay in the cool-neutral hue-240 family; `--sidebar-accent` (active and hover row fill) is on the brand cyan hue 230 so the selected nav item reads as the brand color rather than a generic cool grey.
+`--sidebar-*` family (8 tokens) for the left rail. Surface / foreground / border tokens stay in the cool-neutral hue-240 family; `--sidebar-accent` (active and hover row fill) is on the brand sky-blue hue 251 so the selected nav item reads as the brand color rather than a generic cool grey.
 
 | Token | Light | Dark | Notes |
 |---|---|---|---|
 | `--sidebar` | `oklch(0.97 0.005 240)` | `oklch(0.04 0.005 240)` | Rail background. |
-| `--sidebar-accent` | `oklch(0.93 0.06 230)` | `oklch(0.3 0.1 230)` | Active/hover row fill — brand-tinted cyan. |
-| `--sidebar-accent-foreground` | `oklch(0.32 0.15 230)` | `oklch(0.985 0 0)` | Text on active row. |
-| `--sidebar-primary` | `oklch(0.6 0.15 230)` | `oklch(0.79 0.138 230)` | Mirrors `--primary`. |
-| `--sidebar-border` | `oklch(0.6 0.15 230 / 0.16)` | `oklch(0.79 0.138 230 / 0.14)` | Brand-tinted hairlines. |
-| `--sidebar-ring` | `oklch(0.6 0.15 230 / 0.6)` | `oklch(0.79 0.138 230 / 0.6)` | Focus rings on sidebar controls. |
+| `--sidebar-accent` | `oklch(0.94 0.04 251)` | `oklch(0.32 0.06 251)` | Active/hover row fill — brand-tinted. |
+| `--sidebar-accent-foreground` | `oklch(0.4 0.13 251)` | `oklch(0.985 0 0)` | Text on active row. |
+| `--sidebar-primary` | `oklch(0.55 0.14 251)` | `oklch(0.751 0.132 251)` | Mirrors `--primary`. |
+| `--sidebar-border` | `oklch(0.55 0.14 251 / 0.18)` | `oklch(0.751 0.132 251 / 0.16)` | Brand-tinted hairlines. |
+| `--sidebar-ring` | `oklch(0.55 0.14 251 / 0.55)` | `oklch(0.751 0.132 251 / 0.6)` | Focus rings on sidebar controls. |
 
 Active row in `app-sidebar.tsx` composes `bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-primary/25` — the brand-tinted fill plus a faint primary ring around the edge.
 
 ### Decorative gradient
 
-`--gradient-stop-1` … `--gradient-stop-4` drive the `body::before` fixed overlay (4 radial gradients). All four blobs are **bottom-right-anchored** (flipped from the old top-left on 2026-06-05) so the upper-left of every page stays clean. Hues are the cyan brand family (215 → 235), with stops 2–4 lighter (L 0.80–0.85) than the brand anchor (L 0.79) — a soft halo in the corner rather than a saturated wash. Dark-mode alphas were halved when the brand went cyan (it's brighter than the old indigo, so it popped): bloom `0.20 → 0.10`, others scaled to `0.07 / 0.05 / 0.05`. Light mode stays faint (`0.08 / 0.06 / 0.05 / 0.04`).
+`--gradient-stop-1` … `--gradient-stop-4` drive the `body::before` fixed overlay (4 radial gradients). All four blobs are **bottom-right-anchored** (flipped from top-left on 2026-06-05) so the upper-left of every page stays clean. Hues track the **#6bb3ff sky-blue** family (236 → 256), bloom (stop-1) on the brand value, stops 2–4 lighter. Alphas are kept low so it stays subtle: dark `0.10 / 0.07 / 0.05 / 0.05`, light `0.08 / 0.06 / 0.05 / 0.04`. (Tried grey/white mid-iteration — pure neutral read warm/brown against the cool-grey surfaces, so the bg follows the brand instead.)
 
 ```
-88% 105%  — primary-cyan bloom, largest (130% × 100%), bottom-right corner
-100% 55%  — right-edge tail, lighter cyan (90% × 80%)
-75% 80%   — lower-right accent, lighter cyan (70% × 60%)
-105% 20%  — right-edge wisp, lighter cyan (55% × 50%)
+88% 105%  — primary sky-blue bloom, largest (130% × 100%), bottom-right corner
+100% 55%  — right-edge tail, lighter blue (90% × 80%)
+75% 80%   — lower-right accent, lighter blue (70% × 60%)
+105% 20%  — right-edge wisp, lighter blue (55% × 50%)
 ```
 
 Alpha: light mode is subtle (0.08 / 0.06 / 0.05 / 0.04); dark mode roughly 2× heavier (0.20 / 0.14 / 0.10 / 0.10).
@@ -283,7 +285,8 @@ Concrete candidates for the next visual pass — none of these are committed, al
 
 ## 11. Where it came from
 
-- **Heading face → Archivo (Neue Plak Wide stand-in)** — 2026-06-06. Headings + subheadings moved off JetBrains Mono to **Archivo** (variable, `wdth` axis) styled `font-stretch-expanded` + `font-semibold` + `uppercase` + `tracking-wide` — a free substitute for **Neue Plak Wide SemiBold caps** (Monotype, not on Google Fonts). Applied via `--font-display` (page H1s) and `--font-heading` (Card/Dialog titles); body stays JetBrains Mono. Real Neue Plak can drop into `src/app/fonts/` and swap one token. (Detour: Pixelify Sans was trialled as a Mondwest stand-in and rejected.)
+- **Major Mono Display headings + #6bb3ff + decode animation + logo move** — 2026-06-06 (visual pass). Headings/subheadings → **Major Mono Display** in `lowercase` (its clean-caps mode; uppercase triggers heavy "filled" alternates), weight faked via same-color text-stroke. Brand settled on **#6bb3ff** sky-blue (`oklch 0.751 0.132 251`) after #3dcbff/#52b7ff/#3d70a6 trials; gradient recolored to the same blue family (a grey/white detour read brown against the cool-grey surfaces). Page H1s gained a 10s glyph-**decode animation** (`scramble-text.tsx`, layout-stable overlay, reduced-motion aware). The Deccan **logo** moved to the **top-left corner** of the "Lead-IQ" wordmark (sidebar + login).
+- **Heading face → Archivo (Neue Plak Wide stand-in)** — 2026-06-06 (superseded same day by Major Mono Display, above). Headings + subheadings moved off JetBrains Mono to **Archivo** (variable, `wdth` axis) styled `font-stretch-expanded` + `font-semibold` + `uppercase` + `tracking-wide` — a free substitute for **Neue Plak Wide SemiBold caps** (Monotype, not on Google Fonts). Applied via `--font-display` (page H1s) and `--font-heading` (Card/Dialog titles); body stays JetBrains Mono. Real Neue Plak can drop into `src/app/fonts/` and swap one token. (Detour: Pixelify Sans was trialled as a Mondwest stand-in and rejected.)
 - **Type unification + cyan rebrand + gradient flip** — 2026-06-05. (1) **One typeface:** JetBrains Mono promoted to the whole app, dropping Space Mono (body) and VT323 (display), after the user compared readability against [cyber.fund](https://cyber.fund/) (which is all JetBrains Mono). Title sizes dropped to fit a real font (`text-5xl`→`text-3xl`; login `7xl`→`5xl`). (2) **Brand → #3dcbff cyan** (`oklch(0.79 0.138 230)`), replacing #4E8CFA indigo across primary / border / ring / accent / chart-1 / sidebar. Not theme-unified: dark = literal #3dcbff, light = darker `oklch(0.6 0.15 230)` for contrast on white; `--primary-foreground` flips dark in dark mode (white fails on bright cyan). (3) **Gradient flipped** top-left → bottom-right (point-reflected the four blob positions), recolored to the cyan family (215–235), and dark-mode alpha halved (bloom `0.20→0.10`) because the brighter cyan popped too much.
 - **Original launch palette (sky-blue + black, Space Mono)** — 2026-04-17 milestone M1.
 - **Theme tokens + light mode** — 2026-05-07, added `:root` / `.dark` split, gradient stops per theme.
