@@ -1,6 +1,6 @@
 # Lead-IQ — UI / design system
 
-*Last updated: 2026-05-29*
+*Last updated: 2026-06-05*
 
 This is the working inventory of every visual decision baked into the app — fonts, colors, components, and where each token surfaces. Use it to scope a refresh: every line below is something you can choose to keep or change.
 
@@ -35,16 +35,18 @@ For product / architecture context, see [`DOCS.md`](./DOCS.md). For shipped/queu
 
 ## 3. Fonts
 
-Three faces, all Google Fonts via `next/font/google` in `src/app/layout.tsx`.
+**One face, everywhere: JetBrains Mono.** Loaded once via `next/font/google` in `src/app/layout.tsx`; every font token resolves to it (mapping in `globals.css @theme inline`).
 
 | Token | Family | Used for | Notes |
 |---|---|---|---|
-| `--font-sans` | **Space Mono** (400 / 700) | Body, paragraphs, table cells, KPI labels, Card / Dialog / AlertDialog titles (via `--font-heading` alias) | Default. Mono-spaced; tabular by nature. |
-| `--font-mono` | **JetBrains Mono** (400 / 500 / 700) | Code chips, error displays (campaign-detail + scrape), login-hero ASCII art, template version previews, system-prompt textarea, chart tooltip numbers, connect-key dialogs | Anything with the `font-mono` Tailwind utility. |
-| `--font-display` | **VT323** (400) | Page H1 titles in `PageHeader` (`text-5xl`) and the login hero H1 (`text-6xl sm:text-7xl`) | Pixel-terminal retro. Reads small per its physical box; **do not** promote to body or smaller chrome. |
-| `--font-heading` | alias → `--font-sans` | Inherited by Card/Dialog/AlertDialog titles | Kept aliased so reducing-prominence titles stay Space Mono. |
+| `--font-mono` | **JetBrains Mono** (400 / 500 / 700) | The single loaded font var. | The font object's `variable`. |
+| `--font-sans` | → `var(--font-mono)` | Body, paragraphs, table cells, KPI labels, all prose. | Default body face. |
+| `--font-heading` | → `var(--font-mono)` | Card / Dialog / AlertDialog titles. | |
+| `--font-display` | → `var(--font-mono)` | Page H1 titles in `PageHeader`, chat, login hero. | Titles use weight + size for hierarchy (see below), not a separate face. |
 
-Cloned 2026-05-13 — VT323 + JetBrains Mono came from [aiengineeringfromscratch.com](https://aiengineeringfromscratch.com/) (`rohitg00/ai-engineering-from-scratch`). Their body face (Source Serif 4) was explicitly not adopted.
+Page/hero title sizing (since the old display face was a pixel font sized large): `PageHeader` + chat H1 = `text-3xl font-bold tracking-tight`; login hero H1 = `text-4xl sm:text-5xl font-bold`.
+
+**History:** JetBrains Mono came from [aiengineeringfromscratch.com](https://aiengineeringfromscratch.com/) (cloned 2026-05-13 as the accent/mono face). On **2026-06-05** it was promoted to the single typeface for the whole app — replacing **Space Mono** (former body, dropped for readability after the user compared against [cyber.fund](https://cyber.fund/), which uses JetBrains Mono for everything) and **VT323** (former pixel display face, dropped). One readable monospace family throughout; no other font is loaded.
 
 ---
 
@@ -69,14 +71,14 @@ Both themes declared in `src/app/globals.css`. Colors in OKLCH so hue / chroma s
 
 ### Brand
 
-Brand color is unified across themes — same OKLCH triplet in `:root` and `.dark`, alpha tweaked per surface where needed.
+Brand color is **#3dcbff** cyan (OKLCH hue ~230), adopted 2026-06-05 (replacing the #4E8CFA indigo). It is **not** unified across themes: dark mode uses the literal #3dcbff (`oklch(0.79 0.138 230)`); light mode darkens it to `oklch(0.6 0.15 230)` so headings/buttons stay readable on the near-white canvas. Because the dark cyan is so bright, `--primary-foreground` flips to **dark** in dark mode (white-on-#3dcbff fails contrast; dark-on-cyan reads ~10:1).
 
 | Token | Light | Dark | Used for |
 |---|---|---|---|
-| `--primary` | `oklch(0.65 0.18 262)` | `oklch(0.65 0.18 262)` | **#4E8CFA**, a saturated true-blue. Buttons, focus rings, page H1 titles, qualified badges, primary chart series, sidebar primary surfaces. |
-| `--primary-foreground` | `oklch(0.99 0 0)` | `oklch(0.985 0 0)` | White text/icons on primary surfaces in both modes. |
-| `--border` | `oklch(0.65 0.18 262 / 0.18)` | `oklch(0.65 0.18 262 / 0.18)` | Brand-tinted borders. |
-| `--ring` | `oklch(0.65 0.18 262 / 0.6)` | `oklch(0.65 0.18 262 / 0.6)` | Focus rings (3px). |
+| `--primary` | `oklch(0.6 0.15 230)` | `oklch(0.79 0.138 230)` | **#3dcbff** cyan (dark) / darker cyan (light). Buttons, focus rings, page H1 titles, qualified badges, primary chart series, sidebar primary surfaces. |
+| `--primary-foreground` | `oklch(0.99 0 0)` (white) | `oklch(0.18 0.02 240)` (dark) | Text/icons on primary surfaces. **Dark in dark mode** so button text reads on bright cyan. |
+| `--border` | `oklch(0.6 0.15 230 / 0.18)` | `oklch(0.79 0.138 230 / 0.18)` | Brand-tinted borders. |
+| `--ring` | `oklch(0.6 0.15 230 / 0.6)` | `oklch(0.79 0.138 230 / 0.6)` | Focus rings (3px). |
 | `--input` | `oklch(0.18 0.02 240 / 0.08)` | `oklch(1 0 0 / 0.08)` | Input field fills (kept neutral; not on the brand hue). |
 | `--card-glow` | `0 0 0 1px rgb(0 0 0 / 0.04), 0 6px 20px -6px rgb(0 0 0 / 0.18)` | identical | Subtle dark-grey halo on cards. Applied in `card.tsx` via `shadow-[var(--card-glow)]` alongside the existing `ring-1 ring-foreground/10`. |
 
@@ -84,7 +86,7 @@ Brand color is unified across themes — same OKLCH triplet in `:root` and `.dar
 
 | Token | Light | Dark | Used for |
 |---|---|---|---|
-| `--chart-1` | `oklch(0.65 0.18 262)` | `oklch(0.65 0.18 262)` | Primary series (qualified leads, dominant bar fills). Tracks `--primary`. |
+| `--chart-1` | `oklch(0.6 0.15 230)` | `oklch(0.79 0.138 230)` | Primary series (qualified leads, dominant bar fills). Tracks `--primary` (cyan). |
 | `--chart-2` | `oklch(0.7 0.13 210)` | `oklch(0.78 0.13 210)` | Cyan-ish second series. |
 | `--chart-3` | `oklch(0.5 0.18 258)` | `oklch(0.55 0.18 258)` | Indigo / purple-ish third series. |
 | `--chart-4` | `oklch(0.78 0.05 240)` | `oklch(0.4 0.05 240)` | Muted / "not qualified" overlay (desaturated). |
@@ -96,28 +98,28 @@ shadcn's `ChartContainer` re-emits the per-key chart vars as `--color-{key}` so 
 
 ### Sidebar
 
-`--sidebar-*` family (8 tokens) for the left rail. Surface / foreground / border tokens stay in the cool-neutral hue-240 family; `--sidebar-accent` (active and hover row fill) is rebased onto the brand hue 262 so the selected nav item reads as the new brand color rather than a generic cool grey.
+`--sidebar-*` family (8 tokens) for the left rail. Surface / foreground / border tokens stay in the cool-neutral hue-240 family; `--sidebar-accent` (active and hover row fill) is on the brand cyan hue 230 so the selected nav item reads as the brand color rather than a generic cool grey.
 
 | Token | Light | Dark | Notes |
 |---|---|---|---|
 | `--sidebar` | `oklch(0.97 0.005 240)` | `oklch(0.04 0.005 240)` | Rail background. |
-| `--sidebar-accent` | `oklch(0.93 0.06 262)` | `oklch(0.26 0.09 262)` | Active/hover row fill — brand-tinted. |
-| `--sidebar-accent-foreground` | `oklch(0.32 0.18 262)` | `oklch(0.985 0 0)` | Text on active row. |
-| `--sidebar-primary` | `oklch(0.65 0.18 262)` | `oklch(0.65 0.18 262)` | Mirrors `--primary`. |
-| `--sidebar-border` | `oklch(0.65 0.18 262 / 0.16)` | `oklch(0.65 0.18 262 / 0.14)` | Brand-tinted hairlines. |
-| `--sidebar-ring` | `oklch(0.65 0.18 262 / 0.6)` | `oklch(0.65 0.18 262 / 0.6)` | Focus rings on sidebar controls. |
+| `--sidebar-accent` | `oklch(0.93 0.06 230)` | `oklch(0.3 0.1 230)` | Active/hover row fill — brand-tinted cyan. |
+| `--sidebar-accent-foreground` | `oklch(0.32 0.15 230)` | `oklch(0.985 0 0)` | Text on active row. |
+| `--sidebar-primary` | `oklch(0.6 0.15 230)` | `oklch(0.79 0.138 230)` | Mirrors `--primary`. |
+| `--sidebar-border` | `oklch(0.6 0.15 230 / 0.16)` | `oklch(0.79 0.138 230 / 0.14)` | Brand-tinted hairlines. |
+| `--sidebar-ring` | `oklch(0.6 0.15 230 / 0.6)` | `oklch(0.79 0.138 230 / 0.6)` | Focus rings on sidebar controls. |
 
 Active row in `app-sidebar.tsx` composes `bg-sidebar-accent text-sidebar-accent-foreground ring-1 ring-primary/25` — the brand-tinted fill plus a faint primary ring around the edge.
 
 ### Decorative gradient
 
-`--gradient-stop-1` … `--gradient-stop-4` drive the `body::before` fixed overlay (4 radial gradients). All four blobs are now **left-anchored** so the right half of every page stays clean. Hues ramp through one indigo family (262 → 275 → 270 → 280), with stops 2–4 lighter (L 0.80–0.85) than the brand anchor (L 0.65) — gives the bg a soft halo around the title area rather than a saturated wash.
+`--gradient-stop-1` … `--gradient-stop-4` drive the `body::before` fixed overlay (4 radial gradients). All four blobs are **bottom-right-anchored** (flipped from the old top-left on 2026-06-05) so the upper-left of every page stays clean. Hues are the cyan brand family (215 → 235), with stops 2–4 lighter (L 0.80–0.85) than the brand anchor (L 0.79) — a soft halo in the corner rather than a saturated wash. Dark-mode alphas were halved when the brand went cyan (it's brighter than the old indigo, so it popped): bloom `0.20 → 0.10`, others scaled to `0.07 / 0.05 / 0.05`. Light mode stays faint (`0.08 / 0.06 / 0.05 / 0.04`).
 
 ```
-12% -5%   — primary-blue bloom, largest (130% × 100%), anchors behind the page title
-0%  45%   — mid-left tail, lighter indigo (90% × 80%)
-25% 20%   — small accent near title, lighter indigo (70% × 60%)
--5% 80%   — lower-left wisp, lighter indigo (55% × 50%)
+88% 105%  — primary-cyan bloom, largest (130% × 100%), bottom-right corner
+100% 55%  — right-edge tail, lighter cyan (90% × 80%)
+75% 80%   — lower-right accent, lighter cyan (70% × 60%)
+105% 20%  — right-edge wisp, lighter cyan (55% × 50%)
 ```
 
 Alpha: light mode is subtle (0.08 / 0.06 / 0.05 / 0.04); dark mode roughly 2× heavier (0.20 / 0.14 / 0.10 / 0.10).
@@ -146,7 +148,7 @@ No formal spacing scale beyond Tailwind defaults (`gap-1`/`-2`/`-3`/`-4` are the
 
 | Variant | Look | Used for |
 |---|---|---|
-| `default` | Solid primary (sky-blue) | Primary actions (Save, Create, Push to Campaign) |
+| `default` | Solid primary (cyan #3dcbff; dark text in dark mode) | Primary actions (Save, Create, Push to Campaign) |
 | `outline` | Border + transparent fill | Secondary actions (Edit on template cards, Export CSV in non-dropdown contexts) |
 | `secondary` | Muted fill | Rare |
 | `ghost` | No border, hover-only fill | Tertiary (Cancel, Back) |
@@ -173,7 +175,7 @@ Color map for campaign status badges:
 
 ### Cards
 
-`bg-card/40` is the default fill across the app — every page-level card uses translucent layered on the gradient. Card titles render in `--font-heading` (Space Mono via alias), `text-base font-medium`. Card descriptions use `text-muted-foreground`.
+`bg-card/40` is the default fill across the app — every page-level card uses translucent layered on the gradient. Card titles render in `--font-heading` (JetBrains Mono via alias), `text-base font-medium`. Card descriptions use `text-muted-foreground`.
 
 ### Status colors for leads
 
@@ -214,7 +216,7 @@ Surrounding layout: `login/page.tsx` puts the headline column and the ASCII colu
 
 ### Sidebar wordmark
 
-`app-sidebar.tsx` header row: `<Image src="/logowhite.png">` (h-6, width auto, `invert dark:invert-0` so the white-on-transparent asset flips to black in light mode) followed by the `Lead-IQ` wordmark in Space Mono semibold. Asset lives at `public/logowhite.png` (776 × 240).
+`app-sidebar.tsx` header row: `<Image src="/logowhite.png">` (h-6, width auto, `invert dark:invert-0` so the white-on-transparent asset flips to black in light mode) followed by the `Lead-IQ` wordmark in JetBrains Mono semibold. Asset lives at `public/logowhite.png` (776 × 240).
 
 ### Login page logo
 
@@ -270,9 +272,8 @@ After any change: hard-refresh in the browser (Cmd+Shift+R) because Turbopack so
 
 Concrete candidates for the next visual pass — none of these are committed, all are starting points.
 
-- **Body face revisit.** Space Mono is identifiable but heavy on long-form prose (reasoning expansions in lead detail can read dense). A clean sans for `--font-sans` (Inter / IBM Plex Sans / Geist) while keeping JetBrains Mono on `font-mono` and VT323 on `font-display` would be the lightest-touch upgrade.
-- **VT323 size sweep.** Currently `text-5xl` on page H1s in `PageHeader`. The pixel grid reads better even bigger — `text-6xl` / `text-7xl` worth eyeballing for hero pages (Analytics, Campaigns).
-- **Primary blue saturation pass.** Sky-blue is uniform across buttons, links, badges, qualified verdicts. Differentiating tone (e.g., a darker primary for buttons, the current bright for chips/badges) would add hierarchy.
+- ~~**Body face revisit.**~~ Done 2026-06-05 — Space Mono → JetBrains Mono everywhere (and VT323 dropped). See §3.
+- **Primary-cyan hierarchy pass.** `#3dcbff` is now uniform across buttons, links, badges, qualified verdicts. In dark mode buttons are full-bright cyan with dark text; a slightly deeper cyan for solid buttons (keeping full #3dcbff for chips/headings/accents) would add hierarchy if the bright buttons read too loud.
 - **Chart palette diversification.** `--chart-3` and `--chart-4` are similar muted blues; for multi-series breakdowns (per business unit, per company top-10) a more separated palette (purple / orange-warm / cyan-cold) reads cleaner. The shadcn chart system makes this a 5-line change in `globals.css`.
 - **Card translucency in dark mode.** `oklch(... / 0.6)` looks great over the gradient but washes out when cards stack inside each other. A solid `--card-solid` variant for nested cases would help.
 - **Status-badge consistency.** Campaign status uses semantic emerald/destructive/muted; lead status uses similar but not identical (e.g., `text-emerald-400` literal). Aligning to tokens (`text-success` / `text-destructive` / `text-muted-foreground`) would make future palette swaps painless.
@@ -282,6 +283,7 @@ Concrete candidates for the next visual pass — none of these are committed, al
 
 ## 11. Where it came from
 
+- **Type unification + cyan rebrand + gradient flip** — 2026-06-05. (1) **One typeface:** JetBrains Mono promoted to the whole app, dropping Space Mono (body) and VT323 (display), after the user compared readability against [cyber.fund](https://cyber.fund/) (which is all JetBrains Mono). Title sizes dropped to fit a real font (`text-5xl`→`text-3xl`; login `7xl`→`5xl`). (2) **Brand → #3dcbff cyan** (`oklch(0.79 0.138 230)`), replacing #4E8CFA indigo across primary / border / ring / accent / chart-1 / sidebar. Not theme-unified: dark = literal #3dcbff, light = darker `oklch(0.6 0.15 230)` for contrast on white; `--primary-foreground` flips dark in dark mode (white fails on bright cyan). (3) **Gradient flipped** top-left → bottom-right (point-reflected the four blob positions), recolored to the cyan family (215–235), and dark-mode alpha halved (bloom `0.20→0.10`) because the brighter cyan popped too much.
 - **Original launch palette (sky-blue + black, Space Mono)** — 2026-04-17 milestone M1.
 - **Theme tokens + light mode** — 2026-05-07, added `:root` / `.dark` split, gradient stops per theme.
 - **VT323 + JetBrains Mono adoption** — 2026-05-13, cloned from aiengineeringfromscratch.com.

@@ -1,33 +1,19 @@
 import type { Metadata } from "next";
-import { Space_Mono, JetBrains_Mono, VT323 } from "next/font/google";
+import { JetBrains_Mono } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
-// Body / long-form prose / Card + Dialog titles. Default sans face.
-const spaceMono = Space_Mono({
-  variable: "--font-sans",
-  subsets: ["latin"],
-  weight: ["400", "700"],
-});
-
-// UI accents — buttons, code chips, error displays, KPI numbers,
-// the login-hero ASCII, template version previews. Anything with the
-// `font-mono` utility. Cloned from aiengineeringfromscratch.com's sub
-// font.
+// JetBrains Mono is the single typeface across the whole app — body text,
+// page-title headings, and mono UI accents (buttons, code chips, error
+// displays, KPI numbers, login-hero ASCII, template previews). It feeds every
+// font token (`--font-sans` / `--font-heading` / `--font-display` /
+// `--font-mono`) via globals.css `@theme inline`. Adopted 2026-06-05,
+// replacing Space Mono (body) and VT323 (display): one readable monospace
+// family throughout, matching cyber.fund's type system.
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-mono",
   subsets: ["latin"],
   weight: ["400", "500", "700"],
-});
-
-// Display only — page H1 titles in PageHeader. Cloned from
-// aiengineeringfromscratch.com's heading face. Pixel-terminal retro,
-// reads small at body sizes — keep restricted to titles via the
-// `font-display` utility.
-const vt323 = VT323({
-  variable: "--font-display",
-  subsets: ["latin"],
-  weight: "400",
 });
 
 export const metadata: Metadata = {
@@ -45,7 +31,7 @@ export default function RootLayout({
     <html
       lang="en"
       suppressHydrationWarning
-      className={`${spaceMono.variable} ${jetbrainsMono.variable} ${vt323.variable} h-full antialiased`}
+      className={`${jetbrainsMono.variable} h-full antialiased`}
     >
       <body className="min-h-full flex flex-col">
         <ThemeProvider

@@ -266,7 +266,7 @@ M-AG2.
 |---|---|---|
 | Framework | **Next.js 16** (App Router, Turbopack) | One deploy artifact for UI + API, fast server components |
 | UI | **shadcn/ui on Base UI** + **Tailwind v4** | Own the components, headless primitives, no design-system lock-in |
-| Theme | Dark, pure black + sky-blue radial gradient, **Space Mono** font | Calm, identifiable, developer-adjacent feel |
+| Theme | Dark, pure black + **#3dcbff** cyan radial gradient, **JetBrains Mono** font | Calm, identifiable, developer-adjacent feel |
 | Charts | **Recharts** via shadcn Chart | Declarative, themable via CSS vars |
 | Auth | **Supabase Auth — shared password** (single shared user) | 5-person team, OAuth / per-user auth would be overkill |
 | Database | **Supabase Postgres** with row-level security | Managed, auth-integrated, cheap |
@@ -572,4 +572,4 @@ Groq openai/gpt-oss-120b (JSON mode)
 
 ## 11. UI / design tokens
 
-The design system — fonts, color tokens, component conventions, gradient overlay, and "decisions on the table" for the next visual pass — lives in [`UI.md`](./UI.md). Updated 2026-05-13 after adopting VT323 for page headings and JetBrains Mono for UI accents (cloned from `aiengineeringfromscratch.com`); Space Mono retained as the body face. Anything you'd touch when changing color, font, or layout starts there.
+The design system — fonts, color tokens, component conventions, gradient overlay, and "decisions on the table" for the next visual pass — lives in [`UI.md`](./UI.md). Updated 2026-06-05: **JetBrains Mono** is now the single typeface (Space Mono + VT323 dropped), and the brand color is **#3dcbff** cyan (replacing the #4E8CFA indigo) with a bottom-right gradient. Anything you'd touch when changing color, font, or layout starts there.

@@ -1,7 +1,7 @@
-// Static ASCII art for the login hero. Rendered pixel-perfect; a rapid
-// CSS color-cycle animation streams indigo-purple bands downward through
-// the glyphs via background-clip: text. Keyframes live in
-// src/app/globals.css under .animate-hero-stream.
+// Static ASCII art for the login hero. Rendered pixel-perfect; a CSS
+// animation streams white→grey→black bands downward through the glyphs via
+// background-clip: text. Keyframes live in src/app/globals.css under
+// .animate-hero-stream.
 const PATTERN = `
 
                                         .'..''"<[/xvvr|[<:''''''
