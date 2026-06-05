@@ -399,8 +399,9 @@ Groq openai/gpt-oss-120b (JSON mode)
   and a "Touchpoint history" section in the inline-expand for hot/warm leads.
   Migration `0006_lead_temperature.sql` adds `leads.temperature` +
   `touchpoint_match jsonb` + a set-based classifier function
-  (`classify_campaign_temperature`); the worker runs it at campaign
-  completion (soft-fail — never gates qualification), and a "Cross-check
+  (`classify_campaign_temperature`); the worker runs it just before flipping
+  the campaign to `completed` (so temperatures render the moment the run
+  finishes; soft-fail — never gates qualification), and a "Cross-check
   leads" button re-runs it on demand. Join bridges leads→HubSpot contact (by
   normalized LinkedIn URL) →Smartlead (by contact email). The "Touchpoint
   history" expand **cites the actual engagement** — each Smartlead email's
