@@ -35,18 +35,18 @@ For product / architecture context, see [`DOCS.md`](./DOCS.md). For shipped/queu
 
 ## 3. Fonts
 
-**One face, everywhere: JetBrains Mono.** Loaded once via `next/font/google` in `src/app/layout.tsx`; every font token resolves to it (mapping in `globals.css @theme inline`).
+**Two faces:** JetBrains Mono (body + mono accents) and Archivo (headings + subheadings). Both via `next/font/google` in `src/app/layout.tsx`; tokens mapped in `globals.css @theme inline`.
 
 | Token | Family | Used for | Notes |
 |---|---|---|---|
-| `--font-mono` | **JetBrains Mono** (400 / 500 / 700) | The single loaded font var. | The font object's `variable`. |
+| `--font-mono` | **JetBrains Mono** (400 / 500 / 700) | The loaded mono var. | Font object's `variable`. |
 | `--font-sans` | → `var(--font-mono)` | Body, paragraphs, table cells, KPI labels, all prose. | Default body face. |
-| `--font-heading` | → `var(--font-mono)` | Card / Dialog / AlertDialog titles. | |
-| `--font-display` | → `var(--font-mono)` | Page H1 titles in `PageHeader`, chat, login hero. | Titles use weight + size for hierarchy (see below), not a separate face. |
+| `--font-display` | **Archivo** (variable, incl. `wdth` axis) | Page H1 titles (`PageHeader`, chat, login). | Font object's `variable`. |
+| `--font-heading` | → `var(--font-display)` | Card / Dialog / AlertDialog titles ("subheadings"). | |
 
-Page/hero title sizing (since the old display face was a pixel font sized large): `PageHeader` + chat H1 = `text-3xl font-bold tracking-tight`; login hero H1 = `text-4xl sm:text-5xl font-bold`.
+**Heading treatment = a free stand-in for Neue Plak Wide SemiBold caps.** Every heading element composes `font-display` (or `font-heading`) + `font-stretch-expanded` (Archivo `wdth` 125 — its max) + `font-semibold` + `uppercase` + `tracking-wide`. Sizes: `PageHeader` + chat H1 = `text-3xl`; login hero H1 = `text-4xl sm:text-5xl`; Card/Dialog titles = `text-base`. To swap in real Neue Plak, drop a licensed `.woff2` in `src/app/fonts/` and repoint `--font-display`.
 
-**History:** JetBrains Mono came from [aiengineeringfromscratch.com](https://aiengineeringfromscratch.com/) (cloned 2026-05-13 as the accent/mono face). On **2026-06-05** it was promoted to the single typeface for the whole app — replacing **Space Mono** (former body, dropped for readability after the user compared against [cyber.fund](https://cyber.fund/), which uses JetBrains Mono for everything) and **VT323** (former pixel display face, dropped). One readable monospace family throughout; no other font is loaded.
+**History:** JetBrains Mono came from [aiengineeringfromscratch.com](https://aiengineeringfromscratch.com/) (cloned 2026-05-13). On **2026-06-05** it replaced **Space Mono** (body) and **VT323** (display) as the app-wide face. On **2026-06-06**, headings/subheadings moved to **Archivo** (expanded/semibold/caps) as a free substitute for Neue Plak Wide SemiBold (Monotype, not Google-hosted); body stays JetBrains Mono. (Trial detour: Pixelify Sans as a Mondwest stand-in — rejected as a poor fit.)
 
 ---
 
@@ -283,6 +283,7 @@ Concrete candidates for the next visual pass — none of these are committed, al
 
 ## 11. Where it came from
 
+- **Heading face → Archivo (Neue Plak Wide stand-in)** — 2026-06-06. Headings + subheadings moved off JetBrains Mono to **Archivo** (variable, `wdth` axis) styled `font-stretch-expanded` + `font-semibold` + `uppercase` + `tracking-wide` — a free substitute for **Neue Plak Wide SemiBold caps** (Monotype, not on Google Fonts). Applied via `--font-display` (page H1s) and `--font-heading` (Card/Dialog titles); body stays JetBrains Mono. Real Neue Plak can drop into `src/app/fonts/` and swap one token. (Detour: Pixelify Sans was trialled as a Mondwest stand-in and rejected.)
 - **Type unification + cyan rebrand + gradient flip** — 2026-06-05. (1) **One typeface:** JetBrains Mono promoted to the whole app, dropping Space Mono (body) and VT323 (display), after the user compared readability against [cyber.fund](https://cyber.fund/) (which is all JetBrains Mono). Title sizes dropped to fit a real font (`text-5xl`→`text-3xl`; login `7xl`→`5xl`). (2) **Brand → #3dcbff cyan** (`oklch(0.79 0.138 230)`), replacing #4E8CFA indigo across primary / border / ring / accent / chart-1 / sidebar. Not theme-unified: dark = literal #3dcbff, light = darker `oklch(0.6 0.15 230)` for contrast on white; `--primary-foreground` flips dark in dark mode (white fails on bright cyan). (3) **Gradient flipped** top-left → bottom-right (point-reflected the four blob positions), recolored to the cyan family (215–235), and dark-mode alpha halved (bloom `0.20→0.10`) because the brighter cyan popped too much.
 - **Original launch palette (sky-blue + black, Space Mono)** — 2026-04-17 milestone M1.
 - **Theme tokens + light mode** — 2026-05-07, added `:root` / `.dark` split, gradient stops per theme.

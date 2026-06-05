@@ -70,7 +70,7 @@ export default async function ChatPage({
   return (
     <div className="flex flex-col gap-6 h-full">
       <div>
-        <h1 className="font-display text-3xl font-bold leading-tight tracking-tight text-primary">
+        <h1 className="font-display font-stretch-expanded text-3xl font-semibold uppercase tracking-wide leading-tight text-primary">
           LeadQuery
         </h1>
         <p className="text-sm text-muted-foreground mt-1">

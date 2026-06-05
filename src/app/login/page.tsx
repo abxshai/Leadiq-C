@@ -61,7 +61,7 @@ export default function LoginPage() {
               priority
               className="h-12 w-auto object-contain mb-2"
             />
-            <h1 className="font-display text-4xl sm:text-5xl font-bold tracking-tight leading-none">
+            <h1 className="font-display font-stretch-expanded text-4xl sm:text-5xl font-semibold uppercase tracking-wide leading-none">
               lead-
               <span className="text-primary">IQ</span>
             </h1>
