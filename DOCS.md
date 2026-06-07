@@ -1,6 +1,6 @@
 # Lead-IQ — Product & Architecture Documentation
 
-*Last updated: 2026-06-05*
+*Last updated: 2026-06-07*
 
 Lead-IQ is an internal self-serve tool at Deccan AI that qualifies
 LinkedIn leads against a target Ideal Customer Profile (ICP) using a
@@ -266,7 +266,7 @@ M-AG2.
 |---|---|---|
 | Framework | **Next.js 16** (App Router, Turbopack) | One deploy artifact for UI + API, fast server components |
 | UI | **shadcn/ui on Base UI** + **Tailwind v4** | Own the components, headless primitives, no design-system lock-in |
-| Theme | Dark, pure black + **#3dcbff** cyan radial gradient, **JetBrains Mono** font | Calm, identifiable, developer-adjacent feel |
+| Theme | Dark, pure black + **#6bb3ff** sky-blue radial gradient; **Major Mono Display** headings + **JetBrains Mono** body | Calm, identifiable, developer-adjacent feel |
 | Charts | **Recharts** via shadcn Chart | Declarative, themable via CSS vars |
 | Auth | **Supabase Auth — shared password** (single shared user) | 5-person team, OAuth / per-user auth would be overkill |
 | Database | **Supabase Postgres** with row-level security | Managed, auth-integrated, cheap |
@@ -494,7 +494,7 @@ Groq openai/gpt-oss-120b (JSON mode)
   campaign with `total_leads` lying about the real count
 - 10 MB Server Action body limit (was 1 MB) so Push to Campaign and
   manual CSV uploads don't 413 around 200+ row scrapes
-- Space Mono + ASCII hero login page; password-based shared auth
+- Major Mono Display headings + JetBrains Mono body; ASCII hero login page; password-based shared auth
 
 **Not yet shipped (roadmap):**
 - **`/leads` view-only page + analytics drilldown deep-links** *(M3.5)* — cross-campaign lead browser with six-column schema (Name · Function · Domain · Seniority · ICP · LinkedIn), filter bar mirroring `/analytics` via URL params. Will inherit the M-CX1 Temperature column for free.
@@ -572,4 +572,4 @@ Groq openai/gpt-oss-120b (JSON mode)
 
 ## 11. UI / design tokens
 
-The design system — fonts, color tokens, component conventions, gradient overlay, and "decisions on the table" for the next visual pass — lives in [`UI.md`](./UI.md). Updated 2026-06-05: **JetBrains Mono** is now the single typeface (Space Mono + VT323 dropped), and the brand color is **#3dcbff** cyan (replacing the #4E8CFA indigo) with a bottom-right gradient. Anything you'd touch when changing color, font, or layout starts there.
+The design system — fonts, color tokens, component conventions, gradient overlay, and "decisions on the table" for the next visual pass — lives in [`UI.md`](./UI.md). Updated 2026-06-06: **Major Mono Display** headings (lowercase→caps) + **JetBrains Mono** body; brand color **#6bb3ff** sky-blue with a matching bottom-right gradient; page titles carry a 10s decode animation. Anything you'd touch when changing color, font, or layout starts there.

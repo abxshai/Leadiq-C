@@ -1,6 +1,6 @@
 # Lead-IQ — UI / design system
 
-*Last updated: 2026-06-05*
+*Last updated: 2026-06-07*
 
 This is the working inventory of every visual decision baked into the app — fonts, colors, components, and where each token surfaces. Use it to scope a refresh: every line below is something you can choose to keep or change.
 
@@ -150,7 +150,7 @@ No formal spacing scale beyond Tailwind defaults (`gap-1`/`-2`/`-3`/`-4` are the
 
 | Variant | Look | Used for |
 |---|---|---|
-| `default` | Solid primary (cyan #3dcbff; dark text in dark mode) | Primary actions (Save, Create, Push to Campaign) |
+| `default` | Solid primary (#6bb3ff sky-blue; dark text in dark mode) | Primary actions (Save, Create, Push to Campaign) |
 | `outline` | Border + transparent fill | Secondary actions (Edit on template cards, Export CSV in non-dropdown contexts) |
 | `secondary` | Muted fill | Rare |
 | `ghost` | No border, hover-only fill | Tertiary (Cancel, Back) |
@@ -177,7 +177,7 @@ Color map for campaign status badges:
 
 ### Cards
 
-`bg-card/40` is the default fill across the app — every page-level card uses translucent layered on the gradient. Card titles render in `--font-heading` (JetBrains Mono via alias), `text-base font-medium`. Card descriptions use `text-muted-foreground`.
+`bg-card/40` is the default fill across the app — every page-level card uses translucent layered on the gradient. Card titles render in `--font-heading` (Major Mono Display), `lowercase` `text-base` with a light `0.3px` text-stroke for weight (see §3). Card descriptions use `text-muted-foreground`.
 
 ### Status colors for leads
 
@@ -218,11 +218,11 @@ Surrounding layout: `login/page.tsx` puts the headline column and the ASCII colu
 
 ### Sidebar wordmark
 
-`app-sidebar.tsx` header row: `<Image src="/logowhite.png">` (h-6, width auto, `invert dark:invert-0` so the white-on-transparent asset flips to black in light mode) followed by the `Lead-IQ` wordmark in JetBrains Mono semibold. Asset lives at `public/logowhite.png` (776 × 240).
+`app-sidebar.tsx` header row: the `Lead-IQ` wordmark in **Major Mono Display** (`font-display lowercase text-base`, `0.35px` text-stroke), with the Deccan logo (`<Image src="/logowhite.png">`, `h-4`, `invert dark:invert-0` to flip the white-on-transparent asset black in light mode) **absolutely positioned at the top-left corner** of the wordmark (`absolute bottom-full left-0`). Asset lives at `public/logowhite.png` (776 × 240).
 
 ### Login page logo
 
-`login/page.tsx` mirrors the sidebar pattern but bigger: `<Image src="/logowhite.png">` rendered at h-12 above the `lead-IQ` headline. Login is dark-locked, so no `invert` filter needed there — the white logo just renders on the dark canvas.
+`login/page.tsx` mirrors the sidebar pattern: the `lead-IQ` headline (Major Mono Display, `text-4xl sm:text-5xl`) with the Deccan logo (`<Image src="/logowhite.png">`, `h-5`) **absolutely positioned at the top-left corner** of the headline. Login is dark-locked, so no `invert` filter needed — the white logo renders on the dark canvas.
 
 ---
 
@@ -275,7 +275,7 @@ After any change: hard-refresh in the browser (Cmd+Shift+R) because Turbopack so
 Concrete candidates for the next visual pass — none of these are committed, all are starting points.
 
 - ~~**Body face revisit.**~~ Done 2026-06-05 — Space Mono → JetBrains Mono everywhere (and VT323 dropped). See §3.
-- **Primary-cyan hierarchy pass.** `#3dcbff` is now uniform across buttons, links, badges, qualified verdicts. In dark mode buttons are full-bright cyan with dark text; a slightly deeper cyan for solid buttons (keeping full #3dcbff for chips/headings/accents) would add hierarchy if the bright buttons read too loud.
+- **Brand-blue hierarchy pass.** `#6bb3ff` is uniform across buttons, links, badges, qualified verdicts. In dark mode buttons are full-bright blue with dark text; a slightly deeper blue for solid buttons (keeping full #6bb3ff for chips/headings/accents) would add hierarchy if the bright buttons read too loud.
 - **Chart palette diversification.** `--chart-3` and `--chart-4` are similar muted blues; for multi-series breakdowns (per business unit, per company top-10) a more separated palette (purple / orange-warm / cyan-cold) reads cleaner. The shadcn chart system makes this a 5-line change in `globals.css`.
 - **Card translucency in dark mode.** `oklch(... / 0.6)` looks great over the gradient but washes out when cards stack inside each other. A solid `--card-solid` variant for nested cases would help.
 - **Status-badge consistency.** Campaign status uses semantic emerald/destructive/muted; lead status uses similar but not identical (e.g., `text-emerald-400` literal). Aligning to tokens (`text-success` / `text-destructive` / `text-muted-foreground`) would make future palette swaps painless.

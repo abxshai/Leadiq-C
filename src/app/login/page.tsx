@@ -56,14 +56,14 @@ export default function LoginPage() {
             <h1 className="relative inline-block font-display text-4xl sm:text-5xl lowercase tracking-wide leading-none [-webkit-text-stroke:0.7px_currentColor]">
               lead-
               <span className="text-primary">IQ</span>
-              {/* Deccan logo at the top-right corner of the wordmark. */}
+              {/* Deccan logo at the top-left corner of the wordmark. */}
               <Image
                 src="/logowhite.png"
                 alt="Lead-IQ"
                 width={220}
                 height={68}
                 priority
-                className="pointer-events-none absolute left-full top-0 ml-2 -translate-y-1/3 h-5 w-auto object-contain"
+                className="pointer-events-none absolute bottom-full left-0 mb-1 h-5 w-auto object-contain"
               />
             </h1>
             <p className="text-sm text-muted-foreground max-w-sm">
