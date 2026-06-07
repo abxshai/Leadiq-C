@@ -70,10 +70,10 @@ In the Railway service → **Variables** tab, add these **six** keys:
 
 | Key | Value |
 |---|---|
-| `NEXT_PUBLIC_HUBSPOT_PORTAL_ID` | your HubSpot account/portal ID — the number in your HubSpot URLs (`app.hubspot.com/contacts/`**`<this>`**`/...`). Enables the "View in HubSpot" link on the touchpoint-history card. If unset, that link is hidden; Smartlead links work regardless. **`NEXT_PUBLIC_` = inlined at build time**, so set it before the build that should include it (or redeploy after adding). |
+| `NEXT_PUBLIC_HUBSPOT_PORTAL_ID` | HubSpot account/portal ID — the number in your HubSpot URLs (`app.hubspot.com/contacts/`**`<this>`**`/...`). **Deccan's value: `47712062`** (set in Railway + local `.env.local`). Enables the "View in HubSpot" link on the touchpoint-history card; if unset that link is hidden (Smartlead links work regardless). |
 | `NEXT_PUBLIC_SMARTLEAD_BASE_URL` | only if self-hosting Smartlead; defaults to `https://app.smartlead.ai`. |
 
-After saving, Railway will redeploy automatically.
+After saving, Railway redeploys automatically. **Important — `NEXT_PUBLIC_*` vars are inlined at *build* time, not read at runtime:** the var must be present *before* the build runs. Adding it then waiting for the fresh build to finish works; a runtime-only restart won't pick it up. If a deploy ever serves a stale bundle, push a commit to force a clean rebuild. (The HubSpot links not showing in prod once traced to exactly this — the bundle had been built before the var existed.)
 
 ---
 
