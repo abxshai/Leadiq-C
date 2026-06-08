@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
-import { ChevronDown, X } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { X } from "lucide-react";
 import {
   Area,
   AreaChart,
@@ -23,14 +24,7 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from "@/components/ui/chart";
-import {
-  DropdownMenu,
-  DropdownMenuCheckboxItem,
-  DropdownMenuContent,
-  DropdownMenuSeparator,
-  DropdownMenuTrigger,
-} from "@/components/ui/dropdown-menu";
-import { cn } from "@/lib/utils";
+import { MultiSelect, PillGroup, Divider } from "@/components/ui/multi-select";
 
 export type Lead = {
   id: string;
@@ -157,6 +151,7 @@ export function AnalyticsDashboard({
   leads: Lead[];
   campaigns: Campaign[];
 }) {
+  const router = useRouter();
   const [range, setRange] = useState<Range>("30d");
   const [bucket, setBucket] = useState<Bucket>("day");
   const [selCampaigns, setSelCampaigns] = useState<Set<string>>(new Set());
@@ -494,31 +489,43 @@ export function AnalyticsDashboard({
           <div className="grid gap-4 lg:grid-cols-2">
             <BarCard
               title="Qualified per business unit"
-              description="Top business units (domain_classification) among qualified leads."
+              description="Top business units (domain_classification) among qualified leads. Click a bar to drill into /leads."
               data={buData}
               keyName="key"
               empty={buData.length === 0}
+              onSelect={(d) =>
+                drill(router, "bu", d.key as string | undefined)
+              }
             />
             <BarCard
               title="Qualified per ICP"
-              description="ICP qualification (Decision Maker / Influencer / Champion / etc.) among qualified leads."
+              description="ICP qualification (Decision Maker / Influencer / Champion / etc.) among qualified leads. Click a bar to drill into /leads."
               data={icpData}
               keyName="key"
               empty={icpData.length === 0}
+              onSelect={(d) =>
+                drill(router, "icp", d.key as string | undefined)
+              }
             />
             <BarCard
               title="Qualified per company"
-              description="Top 10 companies by qualified-lead count."
+              description="Top 10 companies by qualified-lead count. Click a bar to drill into /leads."
               data={companyData}
               keyName="key"
               empty={companyData.length === 0}
+              onSelect={(d) =>
+                drill(router, "company", d.key as string | undefined)
+              }
             />
             <BarCard
               title="Qualified per campaign"
-              description="Top 12 campaigns by qualified-lead count."
+              description="Top 12 campaigns by qualified-lead count. Click a bar to drill into /leads."
               data={campaignData}
               keyName="name"
               empty={campaignData.length === 0}
+              onSelect={(d) =>
+                drill(router, "campaign", d.id as string | undefined)
+              }
             />
           </div>
         </>
@@ -556,114 +563,17 @@ function topN(
 
 // ---- subcomponents ------------------------------------------------------
 
-function PillGroup<T extends string>({
-  options,
-  value,
-  onChange,
-}: {
-  options: { value: T; label: string }[];
-  value: T;
-  onChange: (v: T) => void;
-}) {
-  return (
-    <div className="inline-flex rounded-md border border-border/60 bg-background/40 p-0.5">
-      {options.map((o) => (
-        <button
-          key={o.value}
-          type="button"
-          onClick={() => onChange(o.value)}
-          className={cn(
-            "px-2.5 py-1 text-xs rounded-sm transition-colors",
-            value === o.value
-              ? "bg-accent text-accent-foreground"
-              : "text-muted-foreground hover:text-foreground"
-          )}
-        >
-          {o.label}
-        </button>
-      ))}
-    </div>
-  );
-}
 
-function Divider() {
-  return <div className="h-5 w-px bg-border/60" aria-hidden />;
-}
-
-function MultiSelect({
-  label,
-  options,
-  selected,
-  onChange,
-}: {
-  label: string;
-  options: { value: string; label: string }[];
-  selected: Set<string>;
-  onChange: (next: Set<string>) => void;
-}) {
-  const count = selected.size;
-  const disabled = options.length === 0;
-  return (
-    <DropdownMenu>
-      <DropdownMenuTrigger
-        disabled={disabled}
-        className={cn(
-          "inline-flex items-center gap-1.5 rounded-md border border-border/60 bg-background/40 px-2.5 py-1 text-xs",
-          "hover:bg-accent hover:text-accent-foreground transition-colors",
-          disabled && "opacity-50 cursor-not-allowed"
-        )}
-      >
-        <span>{label}</span>
-        {count > 0 ? (
-          <span className="ml-0.5 inline-flex h-4 min-w-4 items-center justify-center rounded-full bg-primary/15 px-1 text-[10px] text-primary tabular-nums">
-            {count}
-          </span>
-        ) : null}
-        <ChevronDown className="h-3.5 w-3.5 opacity-60" />
-      </DropdownMenuTrigger>
-      <DropdownMenuContent
-        align="start"
-        className="max-h-72 w-64 overflow-y-auto"
-      >
-        <div className="flex items-center justify-between px-1.5 py-1 text-xs font-medium text-muted-foreground">
-          <span>{label}</span>
-          {count > 0 ? (
-            <button
-              type="button"
-              onClick={(e) => {
-                e.stopPropagation();
-                onChange(new Set());
-              }}
-              className="text-[10px] uppercase tracking-wide hover:text-foreground"
-            >
-              Clear
-            </button>
-          ) : null}
-        </div>
-        <DropdownMenuSeparator />
-        {options.length === 0 ? (
-          <div className="px-2 py-1.5 text-xs text-muted-foreground">
-            No options
-          </div>
-        ) : (
-          options.map((o) => (
-            <DropdownMenuCheckboxItem
-              key={o.value}
-              checked={selected.has(o.value)}
-              onCheckedChange={(checked) => {
-                const next = new Set(selected);
-                if (checked) next.add(o.value);
-                else next.delete(o.value);
-                onChange(next);
-              }}
-            >
-              <span className="truncate">{o.label}</span>
-            </DropdownMenuCheckboxItem>
-          ))
-        )}
-      </DropdownMenuContent>
-    </DropdownMenu>
-  );
+// Navigate from an analytics bar into the matching /leads filter. bu/icp are
+// exact-value params; company is a contains filter (exact name still matches
+// itself); campaign is by id. Skips the "—" (empty) bucket.
+function drill(
+  router: ReturnType<typeof useRouter>,
+  param: string,
+  value: string | undefined
+) {
+  if (!value || value === "—") return;
+  router.push(`/leads?${param}=${encodeURIComponent(value)}`);
 }
 
 function BarCard({
@@ -672,12 +582,14 @@ function BarCard({
   data,
   keyName,
   empty,
+  onSelect,
 }: {
   title: string;
   description: string;
   data: Array<{ count: number } & Record<string, unknown>>;
   keyName: string;
   empty: boolean;
+  onSelect?: (datum: { count: number } & Record<string, unknown>) => void;
 }) {
   return (
     <Card className="bg-card/40">
@@ -720,7 +632,20 @@ function BarCard({
               }
             />
             <ChartTooltip content={<ChartTooltipContent />} />
-            <Bar dataKey="count" fill="var(--color-count)" radius={[0, 4, 4, 0]} />
+            <Bar
+              dataKey="count"
+              fill="var(--color-count)"
+              radius={[0, 4, 4, 0]}
+              cursor={onSelect ? "pointer" : undefined}
+              onClick={
+                onSelect
+                  ? (_entry: unknown, index: number) => {
+                      const d = data[index];
+                      if (d) onSelect(d);
+                    }
+                  : undefined
+              }
+            />
           </BarChart>
         </ChartContainer>
       )}

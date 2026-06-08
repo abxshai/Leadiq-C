@@ -1,6 +1,6 @@
 # Lead-IQ — UI / design system
 
-*Last updated: 2026-06-07*
+*Last updated: 2026-06-08*
 
 This is the working inventory of every visual decision baked into the app — fonts, colors, components, and where each token surfaces. Use it to scope a refresh: every line below is something you can choose to keep or change.
 
@@ -20,7 +20,7 @@ For product / architecture context, see [`DOCS.md`](./DOCS.md). For shipped/queu
 
 | Layer | Package | Why we use it | Files |
 |---|---|---|---|
-| Primitives | `@base-ui/react` ^1.4 | Headless layer under shadcn (replaces Radix). Menu / Dialog / Select / Tooltip / AlertDialog / Tabs. | `src/components/ui/*.tsx` |
+| Primitives | `@base-ui/react` ^1.4 | Headless layer under shadcn (replaces Radix). Menu / Dialog / Select / Tooltip / AlertDialog / Tabs / Checkbox. | `src/components/ui/*.tsx` |
 | Component layer | shadcn/ui (Base-UI variant) | Owned, copy-paste components — not a runtime dep. | `src/components/ui/*.tsx` |
 | Styling | Tailwind v4 + `@tailwindcss/postcss` | CSS-variable-driven theming via `@theme inline`. | `src/app/globals.css`, `postcss.config.mjs` |
 | Tailwind extras | `tw-animate-css` | Enter/exit utilities (`animate-in`, `fade-in-0`, `zoom-in-95`). | Used in `dropdown-menu.tsx`, `dialog.tsx`. |
@@ -200,6 +200,18 @@ In the campaign-detail table, `LeadStatus`:
 
 The Temperature filter chips above the table reuse the active-pill style `border-primary/40 bg-primary/10 text-primary` (active) vs `border-border text-muted-foreground` (inactive) — same `Thermometer` lucide glyph as the row cells. The inline-expand "Touchpoint history" section reuses the existing prose-expand divider/label conventions (no new tokens). Each cited Smartlead email shows an action verb color-coded by `actionColor` (replied → `text-emerald-400`, clicked → `text-primary`, opened → `text-amber-400`, sent → `text-muted-foreground`) with the subject quoted in `italic text-foreground/80` underneath. **Deep links** use `lucide:ExternalLink` (h-3) in `text-primary`: the HubSpot line links to the contact record (gated on `NEXT_PUBLIC_HUBSPOT_PORTAL_ID`), each Smartlead email links to its campaign (`{NEXT_PUBLIC_SMARTLEAD_BASE_URL|app.smartlead.ai}/app/email-campaigns-v2/{campaign_id}/leads?tab={action}`); both open in a new tab with `rel="noopener noreferrer"`.
 
+### Checkbox (`src/components/ui/checkbox.tsx`)
+
+Added 2026-06-08 for the `/leads` row selection (the first checkbox in the app). Base-UI `Checkbox` (`@base-ui/react/checkbox`) styled shadcn-like: `size-4 rounded-[0.3rem] border border-input`, checked/indeterminate states fill with `bg-primary text-primary-foreground` (driven by base-UI's `data-[checked]` / `data-[indeterminate]` attributes), `focus-visible:ring-[3px] ring-ring/50`. The indicator shows `lucide:Check`, or `lucide:Minus` when `indeterminate` (used for the header "select all on page" tri-state).
+
+### Leads browser (`src/components/leads/leads-browser.tsx`)
+
+The `/leads` table reuses the campaign-detail row presentation via the shared `src/components/leads/lead-display.tsx` (badges, `FunctionVerdict`, `TemperatureBadge`, `DetailGrid`/`TouchpointHistory`, the `temperatureBadge`/action maps — all extracted there 2026-06-08 so both tables stay identical). New conventions:
+- **Filter bar** — same shell as analytics (`rounded-lg border border-border/60 bg-card/40 p-3`). Multi-selects reuse the shared `MultiSelect` (extracted to `src/components/ui/multi-select.tsx` alongside `PillGroup`/`Divider`). Text filters (`TextFilter`) are an inline `border-border/60 bg-background/40` pill with a leading `lucide` glyph (`Boxes` area / `Building2` company / `MapPin` location / `Search` free-text) and a trailing `X` clear; debounced 400 ms before writing to the URL. Area is a text filter (not a multi-select) because `product_area` is the per-lead company/team name — ~9.5k distinct values. The All/Qualified toggle is a `PillGroup`.
+- **Selected-row tint** — `bg-primary/5` on the row.
+- **Selection action bar** — appears when ≥1 row selected: `sticky bottom-4 w-fit mx-auto rounded-full border border-border bg-popover/95 px-4 py-2 shadow-lg backdrop-blur`, with Export CSV (`text-primary`), Copy URLs (`lucide:Copy`, swaps to `lucide:Check text-emerald-400` for 1.5 s on copy), and Clear. Selection persists across pages (client `Map` keyed by lead id), so it survives pagination.
+- **Pagination** — centered Prev/Next `outline size-sm` buttons + "Page N of M" in `tabular-nums text-muted-foreground`; only rendered when >1 page.
+
 ### Forms
 
 - Inputs: `src/components/ui/input.tsx` — `border-input bg-transparent rounded-lg`.
@@ -253,6 +265,11 @@ Surrounding layout: `login/page.tsx` puts the headline column and the ASCII colu
 | Chart wrapper | `src/components/ui/chart.tsx` |
 | `--card-glow` consumer | `src/components/ui/card.tsx` |
 | Chat surface | `src/app/(app)/chat/page.tsx`, `src/components/chat/*.tsx` |
+| Leads browser | `src/app/(app)/leads/page.tsx`, `src/components/leads/leads-browser.tsx` |
+| Shared lead cells/badges | `src/components/leads/lead-display.tsx` |
+| Leads filter parsing | `src/lib/leads-filters.ts` |
+| Checkbox primitive | `src/components/ui/checkbox.tsx` |
+| MultiSelect / PillGroup | `src/components/ui/multi-select.tsx` |
 | Agent registry + tools | `src/lib/agents/*.ts`, `src/lib/agents/tools/*.ts` |
 | Postgres pool (chat tools) | `src/lib/agents/pg-pool.ts` (uses `postgres.js`) |
 

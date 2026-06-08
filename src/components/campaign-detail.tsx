@@ -8,7 +8,6 @@ import {
   Loader2,
   ExternalLink,
   CircleAlert,
-  CheckCircle2,
   ChevronRight,
   ChevronDown,
   Thermometer,
@@ -37,6 +36,16 @@ import { DeleteCampaignButton } from "@/components/delete-campaign-button";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 import { useGroqStore } from "@/lib/groq-store";
 import { cn } from "@/lib/utils";
+import {
+  type Lead,
+  type Temperature,
+  LEAD_COLS,
+  DetailGrid,
+  FunctionVerdict,
+  LeadStatus,
+  TemperatureBadge,
+  hasLeadDetail,
+} from "@/components/leads/lead-display";
 
 type Campaign = {
   id: string;
@@ -59,104 +68,6 @@ type Stats = {
   processed_count: number;
   failed_count: number;
   qualified_count: number;
-};
-
-type Lead = {
-  id: string;
-  full_name: string | null;
-  title: string | null;
-  company_name: string | null;
-  status: "pending" | "running" | "processed" | "failed" | "skipped";
-  function_qualification: string | null;
-  function_reasoning: string | null;
-  icp_qualification: string | null;
-  seniority_scoring: number | null;
-  domain_classification: string | null;
-  subdomain: string | null;
-  subdomain_justification: string | null;
-  domain_reasoning: string | null;
-  priority_level: string | null;
-  product_area: string | null;
-  lead_summary: string | null;
-  error: string | null;
-  default_profile_url: string | null;
-  temperature: "hot" | "warm" | "cold" | null;
-  touchpoint_match: TouchpointMatch | null;
-};
-
-// Shape written by classify_campaign_temperature (migration 0006). Both
-// sub-objects are absent when the lead didn't match that source.
-type TouchpointMatch = {
-  hubspot?: {
-    contact_id?: number;
-    lifecyclestage?: string | null;
-    last_replied?: string | null;
-    notes_last_updated?: string | null;
-  };
-  smartlead?: {
-    campaigns?: string[];
-    last_reply?: string | null;
-    last_open?: string | null;
-    last_click?: string | null;
-    last_sent?: string | null;
-    bounced?: boolean;
-    unsubscribed?: boolean;
-    events?: TouchpointEvent[];
-  };
-  last_activity?: string | null;
-} | null;
-
-// One concrete Smartlead touchpoint — the citation of an actual email.
-type TouchpointEvent = {
-  date?: string | null;
-  action?: "sent" | "opened" | "clicked" | "replied";
-  campaign?: string | null;
-  campaign_id?: number | null;
-  subject?: string | null;
-  opens?: number;
-  clicks?: number;
-};
-
-// Deep-link config. HubSpot's portal ID is account-specific and not in the
-// CRM data, so it comes from env (link is omitted when unset). Smartlead is a
-// fixed cloud host.
-const HUBSPOT_PORTAL_ID = process.env.NEXT_PUBLIC_HUBSPOT_PORTAL_ID;
-const SMARTLEAD_BASE =
-  process.env.NEXT_PUBLIC_SMARTLEAD_BASE_URL ?? "https://app.smartlead.ai";
-
-function hubspotContactUrl(contactId?: number): string | null {
-  if (!HUBSPOT_PORTAL_ID || !contactId) return null;
-  // 0-1 = HubSpot's object-type id for contacts.
-  return `https://app.hubspot.com/contacts/${HUBSPOT_PORTAL_ID}/record/0-1/${contactId}`;
-}
-
-const smartleadTab: Record<NonNullable<TouchpointEvent["action"]>, string> = {
-  replied: "replied",
-  clicked: "clicked",
-  opened: "opened",
-  sent: "",
-};
-
-function smartleadCampaignUrl(
-  campaignId?: number | null,
-  action?: TouchpointEvent["action"]
-): string | null {
-  if (!campaignId) return null;
-  const tab = action ? smartleadTab[action] : "";
-  return `${SMARTLEAD_BASE}/app/email-campaigns-v2/${campaignId}/leads${
-    tab ? `?tab=${tab}` : ""
-  }`;
-}
-
-type Temperature = "hot" | "warm" | "cold";
-
-const LEAD_COLS =
-  "id, full_name, title, company_name, status, function_qualification, function_reasoning, icp_qualification, seniority_scoring, domain_classification, subdomain, subdomain_justification, domain_reasoning, priority_level, product_area, lead_summary, error, default_profile_url, temperature, touchpoint_match";
-
-const temperatureBadge: Record<Temperature, string> = {
-  hot: "border-red-500/40 bg-red-500/10 text-red-400",
-  warm: "border-amber-500/40 bg-amber-500/10 text-amber-400",
-  cold: "border-muted-foreground/30 text-muted-foreground",
 };
 
 const statusColor: Record<Campaign["status"], string> = {
@@ -521,16 +432,7 @@ export function CampaignDetail({
           <TableBody>
             {visibleLeads.map((l) => {
               const isOpen = expanded.has(l.id);
-              const hasTouchpoints =
-                (l.temperature === "hot" || l.temperature === "warm") &&
-                l.touchpoint_match != null;
-              const hasDetail =
-                l.function_reasoning ||
-                l.subdomain_justification ||
-                l.domain_reasoning ||
-                l.lead_summary ||
-                l.error ||
-                hasTouchpoints;
+              const hasDetail = hasLeadDetail(l);
               return (
                 <Fragment key={l.id}>
                   <TableRow
@@ -623,202 +525,6 @@ export function CampaignDetail({
   );
 }
 
-function DetailGrid({ lead }: { lead: Lead }) {
-  const sections: { label: string; value: string | null }[] = [
-    { label: "Function reasoning", value: lead.function_reasoning },
-    { label: "Subdomain justification", value: lead.subdomain_justification },
-    { label: "Domain reasoning", value: lead.domain_reasoning },
-    { label: "Lead summary", value: lead.lead_summary },
-  ];
-  const filled = sections.filter((s) => s.value && s.value.trim().length > 0);
-  const showTouchpoints =
-    (lead.temperature === "hot" || lead.temperature === "warm") &&
-    lead.touchpoint_match != null;
-
-  return (
-    <div className="space-y-3 text-xs">
-      {lead.error ? (
-        <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-destructive">
-          <div className="font-medium uppercase tracking-wide text-[10px] mb-1">
-            Error
-          </div>
-          <div className="font-mono whitespace-pre-wrap break-all">
-            {lead.error}
-          </div>
-        </div>
-      ) : null}
-      {filled.length === 0 && !lead.error && !showTouchpoints ? (
-        <div className="text-muted-foreground italic">
-          No additional detail captured for this lead.
-        </div>
-      ) : null}
-      <div className="grid gap-3 sm:grid-cols-2">
-        {filled.map((s) => (
-          <div key={s.label}>
-            <div className="font-medium uppercase tracking-wide text-[10px] text-muted-foreground mb-1">
-              {s.label}
-            </div>
-            <div className="leading-relaxed whitespace-pre-wrap text-foreground/90">
-              {s.value}
-            </div>
-          </div>
-        ))}
-      </div>
-      {showTouchpoints ? (
-        <TouchpointHistory
-          temperature={lead.temperature as Temperature}
-          match={lead.touchpoint_match!}
-        />
-      ) : null}
-    </div>
-  );
-}
-
-function TemperatureBadge({ value }: { value: Temperature | null }) {
-  if (value == null) return <span className="text-muted-foreground">—</span>;
-  return (
-    <Badge
-      variant="outline"
-      className={cn("capitalize", temperatureBadge[value])}
-    >
-      {value}
-    </Badge>
-  );
-}
-
-function fmtDate(iso?: string | null): string | null {
-  if (!iso) return null;
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return null;
-  return d.toISOString().slice(0, 10);
-}
-
-const actionColor: Record<
-  NonNullable<TouchpointEvent["action"]>,
-  string
-> = {
-  replied: "text-emerald-400",
-  clicked: "text-primary",
-  opened: "text-amber-400",
-  sent: "text-muted-foreground",
-};
-const actionVerb: Record<NonNullable<TouchpointEvent["action"]>, string> = {
-  replied: "Replied to",
-  clicked: "Clicked",
-  opened: "Opened",
-  sent: "Sent",
-};
-
-// Renders the HubSpot + Smartlead evidence captured by
-// classify_campaign_temperature, mirroring the prose-expand pattern: a
-// divider, a header with the temperature badge, then a cited list of the
-// actual touchpoints (each Smartlead email's subject + what happened + when),
-// most-recent first.
-function TouchpointHistory({
-  temperature,
-  match,
-}: {
-  temperature: Temperature;
-  match: NonNullable<TouchpointMatch>;
-}) {
-  const hs = match.hubspot;
-  const sl = match.smartlead;
-  const events = sl?.events ?? [];
-
-  return (
-    <div className="border-t border-border pt-3">
-      <div className="flex items-center gap-2 mb-2">
-        <span className="font-medium uppercase tracking-wide text-[10px] text-muted-foreground">
-          Touchpoint history
-        </span>
-        <TemperatureBadge value={temperature} />
-      </div>
-
-      {hs ? (
-        <div className="mb-2 text-foreground/90">
-          <span className="text-muted-foreground">HubSpot:</span>{" "}
-          {hs.lifecyclestage ? (
-            <span className="capitalize">{hs.lifecyclestage}</span>
-          ) : (
-            "contact"
-          )}
-          {hs.last_replied ? (
-            <span className="text-muted-foreground">
-              {" "}
-              · replied {fmtDate(hs.last_replied)}
-            </span>
-          ) : null}
-          {hubspotContactUrl(hs.contact_id) ? (
-            <a
-              href={hubspotContactUrl(hs.contact_id)!}
-              target="_blank"
-              rel="noopener noreferrer"
-              className="ml-2 inline-flex items-center gap-0.5 text-primary hover:underline"
-            >
-              View in HubSpot
-              <ExternalLink className="h-3 w-3" />
-            </a>
-          ) : null}
-        </div>
-      ) : null}
-
-      {events.length > 0 ? (
-        <ul className="space-y-2">
-          {events.map((e, i) => {
-            const action = e.action ?? "sent";
-            const url = smartleadCampaignUrl(e.campaign_id, action);
-            return (
-              <li key={i} className="flex gap-2 leading-snug">
-                <span className="text-muted-foreground tabular-nums shrink-0 w-[5rem]">
-                  {fmtDate(e.date) ?? "—"}
-                </span>
-                <span className="min-w-0">
-                  <span className={cn("font-medium", actionColor[action])}>
-                    {actionVerb[action]}
-                  </span>
-                  {e.campaign ? (
-                    url ? (
-                      <a
-                        href={url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-muted-foreground hover:text-primary hover:underline"
-                      >
-                        {" "}
-                        · {e.campaign}
-                        <ExternalLink className="ml-0.5 inline h-3 w-3 align-text-top" />
-                      </a>
-                    ) : (
-                      <span className="text-muted-foreground"> · {e.campaign}</span>
-                    )
-                  ) : null}
-                  {e.subject ? (
-                    <span className="block text-foreground/80 italic truncate">
-                      “{e.subject}”
-                    </span>
-                  ) : null}
-                </span>
-              </li>
-            );
-          })}
-        </ul>
-      ) : sl ? (
-        <div className="text-muted-foreground">
-          Smartlead: {sl.campaigns?.join(", ") ?? "engaged"}
-        </div>
-      ) : null}
-
-      {sl && (sl.bounced || sl.unsubscribed) ? (
-        <div className="mt-2 text-[11px] text-muted-foreground">
-          {[sl.bounced ? "bounced" : null, sl.unsubscribed ? "unsubscribed" : null]
-            .filter(Boolean)
-            .join(" · ")}
-        </div>
-      ) : null}
-    </div>
-  );
-}
-
 function Kpi({
   label,
   value,
@@ -840,48 +546,3 @@ function Kpi({
   );
 }
 
-function FunctionVerdict({ value }: { value: string | null }) {
-  if (value == null) return <span className="text-muted-foreground">—</span>;
-  const upper = value.trim().toUpperCase();
-  if (upper === "NO") return <span className="text-muted-foreground">NO</span>;
-  if (upper === "YES") {
-    return (
-      <span className="inline-flex items-center gap-1 text-emerald-400">
-        <CheckCircle2 className="h-3.5 w-3.5" />
-        YES
-      </span>
-    );
-  }
-  // Categorical verdict ("Decision Maker", "Influencer", "Champion", etc.) —
-  // show the literal value styled as qualified-positive.
-  return (
-    <span
-      className="inline-flex items-center gap-1 text-emerald-400 truncate max-w-[160px]"
-      title={value}
-    >
-      <CheckCircle2 className="h-3.5 w-3.5 shrink-0" />
-      <span className="truncate">{value}</span>
-    </span>
-  );
-}
-
-function LeadStatus({
-  status,
-  error,
-}: {
-  status: Lead["status"];
-  error: string | null;
-}) {
-  const map: Record<Lead["status"], string> = {
-    pending: "text-muted-foreground",
-    running: "text-primary animate-pulse",
-    processed: "text-emerald-400",
-    failed: "text-destructive",
-    skipped: "text-muted-foreground",
-  };
-  return (
-    <span className={cn("text-xs", map[status])} title={error ?? undefined}>
-      {status}
-    </span>
-  );
-}

@@ -1,6 +1,6 @@
 # Lead-IQ — Product & Architecture Documentation
 
-*Last updated: 2026-06-07*
+*Last updated: 2026-06-08*
 
 Lead-IQ is an internal self-serve tool at Deccan AI that qualifies
 LinkedIn leads against a target Ideal Customer Profile (ICP) using a
@@ -112,10 +112,27 @@ bumping to a new version pointing at the restored content. Past
 campaigns keep their `system_prompt_snapshot` untouched — nothing
 historical ever changes.
 
-**(g) Settings** — placeholder for future workspace-level config
+**(g) Leads — every qualified lead across all campaigns, in one
+filterable, paginated table.** A cross-campaign browser that combines
+the lead rows from every campaign. Each row mirrors the campaign-detail
+table (Name + its source campaign as a subtitle, Role, Qualified, Temp,
+ICP, Seniority, Domain, Priority, Area, Location, LinkedIn) and expands
+inline to the same prose + touchpoint history. **Checkboxes** let you
+select rows (across pages); a sticky bar then **exports the selection to
+CSV** or **copies their LinkedIn URLs** — and there's an "Export all
+(filtered)" for the whole result set. **Filters:** campaign, domain, ICP,
+priority, temperature, seniority (multi-selects), area + company +
+location (text contains — `product_area` is the per-lead company/team
+name, far too many distinct values for a dropdown), a free-text
+name/company/title search, and an All / Qualified toggle. Unlike Analytics, `/leads` filters **server-side
+and paginates** — the filter state lives in the URL (so an Analytics
+chart click can deep-link straight into a filtered view) and the full
+lead set never loads into the browser, so it stays fast as volume grows.
+
+**(h) Settings** — placeholder for future workspace-level config
 (default Clay URL when M4 lands, etc.).
 
-**(h) Chat — LeadQuery agent.** `/chat` route with a multi-agent
+**(i) Chat — LeadQuery agent.** `/chat` route with a multi-agent
 registry; **LeadQuery** is the first agent (more drop in as config).
 Ask natural-language questions about your qualified leads ("How many
 decision-makers in May's Robotics campaign?", "Top 10 companies by
@@ -389,6 +406,18 @@ Groq openai/gpt-oss-120b (JSON mode)
 ## 8. Current state
 
 **Shipped:**
+- **`/leads` cross-campaign browser (M3.5)** — every qualified lead
+  across all campaigns in one server-filtered, URL-driven, paginated
+  table (rich campaign-detail-style rows + inline expand). Row
+  **checkboxes** with cross-page selection feed a sticky bar that
+  **exports the selection to CSV** or **copies LinkedIn URLs**, plus an
+  "Export all (filtered)". Filters: campaign, domain, ICP,
+  priority, temperature, seniority (multi-select); area, company,
+  location (contains); free-text search; All/Qualified toggle. Filters live in
+  the URL so `/analytics` bar charts deep-link in
+  (`/leads?bu=/icp=/company=/campaign=`). New `GET /api/leads/export.csv`
+  + migration `0008_lead_filter_facets.sql` (a `lead_filter_facets()`
+  SQL function powering the dropdowns without loading the full lead set).
 - **Smartlead/HubSpot cross-check + lead temperature (M-CX1)** — every
   qualified lead is tagged **hot** / **warm** / **cold** by a direct local
   JOIN against the `crm` schema (no external service — the HubSpot/Smartlead
@@ -497,7 +526,6 @@ Groq openai/gpt-oss-120b (JSON mode)
 - Major Mono Display headings + JetBrains Mono body; ASCII hero login page; password-based shared auth
 
 **Not yet shipped (roadmap):**
-- **`/leads` view-only page + analytics drilldown deep-links** *(M3.5)* — cross-campaign lead browser with six-column schema (Name · Function · Domain · Seniority · ICP · LinkedIn), filter bar mirroring `/analytics` via URL params. Will inherit the M-CX1 Temperature column for free.
 - **Semantic similarity in LeadQuery** *(M-AG2)* — pgvector + Supabase gte-small embeddings + a `semantic_search_leads` tool. Lets the agent answer concept-match questions ("find leads about AI infra even if their title says 'ML platform engineer'"). Design lives in [`agent-section-plan.md`](./agent-section-plan.md) §4 + §8 (tagged **[M-AG2 — DEFERRED]**).
 - **Clay webhook push** *(M4 — parked 2026-05-28)* — Smartlead/HubSpot via M-CX1 covers the outreach pattern from the enrichment angle; revisit Clay if a push-style gap remains after M-CX1 ships.
 - **Analytics scale fix** — today the page fetches every processed lead

@@ -6,7 +6,7 @@ short.
 
 Companion docs: [`DOCS.md`](./DOCS.md) (product + architecture), [`UI.md`](./UI.md) (design system: fonts, color tokens, component conventions, refresh candidates).
 
-*Last updated: 2026-06-05*
+*Last updated: 2026-06-08*
 
 ---
 
@@ -21,28 +21,6 @@ Companion docs: [`DOCS.md`](./DOCS.md) (product + architecture), [`UI.md`](./UI.
 ---
 
 ## Next up (active milestones)
-
-### M3.5 — Leads drilldown + analytics deep-links
-
-**Why:** Analytics now slices qualified leads by business unit / ICP / company / campaign, but there's no way to follow a slice down to the actual lead rows that make it up. The next product step is `/leads` — a view-only cross-campaign lead browser whose filter state comes from URL params, so clicking a chart slice in `/analytics` becomes a deep-link.
-
-**To build:**
-- [ ] New `/leads` route — paginated lead list joined to `campaigns!inner` (filters orphans, surfaces campaign name)
-- [ ] Six-column table: **Name · Function · Domain · Seniority · ICP · LinkedIn** (campaign attribution shows as a subtitle under Name, not a 7th column — locked decision, see `user_memory/project_lead_iq_leads_view_schema.md`)
-- [ ] Filter bar mirroring `/analytics` (time range, campaign, business unit, ICP, company), state driven by URL params (`/leads?range=30d&bu=Robotics&company=Acme`)
-- [ ] Analytics bar/area charts become clickable — click a business-unit bar → `/leads?bu=<value>` etc.
-- [ ] Inline expand rows for prose (function reasoning, etc.) — same UX as the campaign-detail table
-- [ ] CSV export of the filtered set (All / Qualified-only)
-
-**Open questions:**
-1. Free-text search by name / company / title — add now or defer? I lean add (cheap, high utility).
-2. Does the time-series area chart's click drill into a per-day filtered view, or just to the bucket's underlying leads? Lean per-bucket → `/leads?range=custom&from=...&to=...`.
-
-**Out of scope for v1:** action buttons on lead rows (re-run, push to Clay, edit). `/leads` stays view-only — actions live on `/campaigns/[id]` until proven otherwise.
-
-**Estimate:** 4–5 hours.
-
----
 
 ### M-AG2 — Semantic similarity follow-up to M-AG1
 
@@ -123,6 +101,9 @@ On the radar, not committed. Promote when a real trigger appears.
 ---
 
 ## Shipped
+
+**2026-06-08**
+- [x] **M3.5 — `/leads` cross-campaign browser.** New `/leads` route (sidebar entry between Campaigns and Templates, `Users` icon) that combines every qualified lead across all campaigns into one table. **Scope grew past the original view-only six-column plan** (the user asked for selection + a richer table): the table mirrors the campaign-detail row (checkbox · expand · Name+campaign-subtitle · Role · Qualified · Temp · ICP · Seniority · Domain · Priority · **Location** · LinkedIn) with the same inline prose/touchpoint expand. **Row checkboxes** support select-all-on-page and **cross-page selection** (held client-side in a `Map` keyed by lead id); a sticky action bar does **Export selected CSV** and **Copy LinkedIn URLs**, plus an always-on **Export all (filtered)**. **Filters:** campaign, domain, ICP, priority, temperature, seniority as multi-selects; area + company + location as text-contains (`ilike`) — `product_area` turned out to be ~9.5k distinct (per-lead company/team name), so it's a text filter, not a dropdown; free-text name/company/title search; All/Qualified toggle. **`location` turned out to be a real column** (scraper input) — wired as a real filter/column, not the placeholder the request assumed. **Architecture — scalable, not the analytics pattern:** filters live in the **URL** and the query runs **server-side with pagination** (50/page, `count: 'exact'`), so the full lead set never loads into the browser (the user flagged `/analytics`'s fetch-everything-filter-in-memory approach as unscalable). Shared filter logic in `src/lib/leads-filters.ts` (`parseLeadFilters*` + `applyLeadFilters`) is used by both the page and the new `GET /api/leads/export.csv` route (modes: `?ids=` selected, or filter params → export-all-matching; CSV adds Campaign + Temperature columns). Filter dropdown options come from migration **`0008_lead_filter_facets.sql`** — a `security_invoker` SQL function `lead_filter_facets()` returning distinct domain/ICP/priority in one round trip (apply via Supabase SQL editor; 0007 stays reserved for M-AG2 pgvector). **Refactors:** extracted `src/components/leads/lead-display.tsx` (types + badge/cell components, shared by campaign-detail and the new browser), added `src/components/ui/checkbox.tsx` (base-ui), and lifted `MultiSelect`/`PillGroup`/`Divider` into `src/components/ui/multi-select.tsx` (analytics now imports them). **Analytics deep-links:** the four breakdown bar charts are now clickable → `/leads?bu=/icp=/company=/campaign=`.
 
 **2026-06-05**
 - [x] **M-CX1 — Smartlead/HubSpot cross-check + lead temperature.** Every qualified lead (`function_qualification IS NOT NULL AND != 'NO'`) is now tagged **hot** / **warm** / **cold** by cross-checking the `crm` schema. Shipped as a **direct local JOIN** (not the external `POST /api/leads` the plan originally assumed — the CRM data is local now, so no HTTP contract / BYOK key / rate gate). Join chain: `leads.default_profile_url` → normalized → `crm.gtm_contact_data.hs_linkedin_url` → `.email` → `crm.smartlead_email_stats.lead_email` (leads have no email, so the HubSpot contact bridges). **Classifier** (set-based SQL function `public.classify_campaign_temperature(uuid)`, SECURITY DEFINER): **hot** = HubSpot lifecyclestage ∈ (opportunity/customer/evangelist) OR a reply (HubSpot `hs_sales_email_last_replied` or Smartlead `reply_time`) in the last 90 days; **warm** = any outreach/engagement (`greatest(sent,open,click,reply,hs_replied)`) in the last 6 months; **cold** = otherwise / no CRM match. Migration `0006_lead_temperature.sql` adds `leads.temperature` + `touchpoint_match jsonb` + `touchpoint_checked_at` + partial index, and backfills all 25 existing campaigns at apply time (result: 18 hot / 773 warm / 7,572 cold). Worker calls the function once per run, **just before** flipping the campaign to `completed` (so temperatures are written by the time the campaign-detail page observes the finish and stops polling — they render on the first refresh, no reload; commit `9fff620`). Soft-fail — temperature is enrichment, never gates qualification (a classifier error just proceeds to `completed` with blank temps). New `POST /api/campaigns/[id]/cross-check` route + "Cross-check leads" / "Re-cross-check" header button for idempotent re-runs. Campaign-detail gains a **Temp** column (red/amber/muted badge), a Temperature filter chip (All/Hot/Warm/Cold), and a "Touchpoint history" section in the existing inline-expand for hot/warm leads (rendered from `touchpoint_match`). `smartlead_email_stats.lead_category` is 100% null in the ingest, so engagement is read from the timestamp/flag columns, not the category. **Known limitation:** a lead present in Smartlead but not in HubSpot is invisible (no email bridge) — affects ~55 qualified leads (0.7%); name-fallback matching was deferred as fuzzy/false-positive-prone. `gtm_deal_data` has no contact key, so deal stages aren't used — HubSpot signal is contact-level (lifecycle + last-replied). **Cited touchpoints + deep links:** `touchpoint_match.smartlead.events[]` holds up to 12 most-recent emails (subject + action[sent/opened/clicked/replied] + campaign + `campaign_id` + date); the expand renders each as a citation that deep-links to the Smartlead campaign (`app.smartlead.ai/app/email-campaigns-v2/{campaign_id}/leads?tab={action}`), and the HubSpot line deep-links to the contact record (`app.hubspot.com/contacts/{portal}/record/0-1/{contact_id}`, gated on the new `NEXT_PUBLIC_HUBSPOT_PORTAL_ID` env — see `DEPLOY.md` §3). Deployed to Railway via commit `994047e`.
