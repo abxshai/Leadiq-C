@@ -1,6 +1,6 @@
 # Lead-IQ — Product & Architecture Documentation
 
-*Last updated: 2026-06-08*
+*Last updated: 2026-06-09*
 
 Lead-IQ is an internal self-serve tool at Deccan AI that qualifies
 LinkedIn leads against a target Ideal Customer Profile (ICP) using a
@@ -437,6 +437,21 @@ Groq openai/gpt-oss-120b (JSON mode)
   subject + action (sent/opened/clicked/replied) + date — and **deep-links**
   to the Smartlead campaign and the HubSpot contact record (HubSpot link needs
   `NEXT_PUBLIC_HUBSPOT_PORTAL_ID`; see `DEPLOY.md`).
+- **On-demand touchpoint summary (M-CX2)** — for hot/warm leads that have an
+  actual Smartlead reply thread (the `crm.smartlead_reply_threads` table — real
+  SENT/REPLY message bodies, not just engagement metadata), the touchpoint
+  expand shows a **Summarize touchpoints** button. Clicking it sends the thread
+  to Groq (BYOK) and returns a short recap of the conversation plus one
+  **actionable "where to pick it back up" signal**; the result is cached on the
+  lead (`touchpoint_summary`) so it's instant on re-open and shared across the
+  team, with a "Re-summarize" to refresh. On-demand and per-lead so we never
+  bulk-summarize (no token burn); the button only appears when thread bodies
+  exist (`touchpoint_match.smartlead.reply_thread_count > 0`). The existing
+  citations + deep links are unchanged — the summary sits above them. Migration
+  `0009_touchpoint_summary.sql`; route `POST /api/leads/[id]/summarize-touchpoints`;
+  reachable via the same leads→HubSpot-contact→email→thread bridge as the
+  classifier. *Note:* a lead is only reachable when it's also a HubSpot contact
+  whose email carries the thread — the same bridge invariant as M-CX1.
 - **LeadQuery agent + chat surface (M-AG1)** — `/chat` route with
   natural-language → read-only SQL over `campaigns` / `leads` /
   `campaign_stats` via three MCP-style tools (`execute_sql`,

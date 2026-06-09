@@ -1,6 +1,6 @@
 # Lead-IQ — UI / design system
 
-*Last updated: 2026-06-08*
+*Last updated: 2026-06-09*
 
 This is the working inventory of every visual decision baked into the app — fonts, colors, components, and where each token surfaces. Use it to scope a refresh: every line below is something you can choose to keep or change.
 
@@ -200,6 +200,41 @@ In the campaign-detail table, `LeadStatus`:
 
 The Temperature filter chips above the table reuse the active-pill style `border-primary/40 bg-primary/10 text-primary` (active) vs `border-border text-muted-foreground` (inactive) — same `Thermometer` lucide glyph as the row cells. The inline-expand "Touchpoint history" section reuses the existing prose-expand divider/label conventions (no new tokens). Each cited Smartlead email shows an action verb color-coded by `actionColor` (replied → `text-emerald-400`, clicked → `text-primary`, opened → `text-amber-400`, sent → `text-muted-foreground`) with the subject quoted in `italic text-foreground/80` underneath. **Deep links** use `lucide:ExternalLink` (h-3) in `text-primary`: the HubSpot line links to the contact record (gated on `NEXT_PUBLIC_HUBSPOT_PORTAL_ID`), each Smartlead email links to its campaign (`{NEXT_PUBLIC_SMARTLEAD_BASE_URL|app.smartlead.ai}/app/email-campaigns-v2/{campaign_id}/leads?tab={action}`); both open in a new tab with `rel="noopener noreferrer"`.
 
+### Touchpoint summary (`src/components/leads/touchpoint-summary.tsx`, M-CX2)
+
+The on-demand thread-summary control inside the hot/warm "Touchpoint history"
+expand. Own `"use client"` module so `lead-display.tsx` stays hook-free; rendered
+by `TouchpointHistory` only when `touchpoint_match.smartlead.reply_thread_count > 0`,
+positioned **above** the existing HubSpot line + cited events (those are
+untouched). No new tokens.
+- **Unsummarized state** — an `outline size-xs` Button "Summarize touchpoints"
+  with a `lucide:Sparkles` glyph and a trailing muted `· {count}` (thread size);
+  swaps to `lucide:Loader2 animate-spin` while loading. Errors render below in
+  `text-destructive`.
+- **Summarized state** — a `rounded-md border border-border/60 bg-muted/30 px-3 py-2`
+  card: a `Sparkles` "Thread summary" label (same `uppercase tracking-wide
+  text-[10px] text-muted-foreground` as the prose-expand labels) + muted date +
+  a right-aligned "Re-summarize" ghost link (`RefreshCw`, `text-primary` on
+  hover). The recap is plain `whitespace-pre-wrap text-foreground/90` (**not**
+  markdown — the source is untrusted email-body text, so plain text keeps it
+  XSS-safe). The actionable signal is a `text-primary` line led by
+  `lucide:ArrowRightCircle`, `font-medium`.
+- BYOK Groq key via `useGroqStore`; POSTs to
+  `/api/leads/[id]/summarize-touchpoints` with `x-groq-key`. No key → inline
+  "Connect your Groq key to summarize."
+
+**Thread marker (`ThreadMarker` in `lead-display.tsx`).** A compact "is a reply
+thread on file?" indicator rendered next to the `TemperatureBadge` in **both**
+lead tables (campaign-detail + `/leads`), and mirrored as an explicit line in
+the touchpoint expand. Driven by `threadCountOf(lead)` →
+`touchpoint_match.smartlead.reply_thread_count` (recomputed by
+`classify_campaign_temperature` on every cross-check, so it self-populates as
+the threads table grows). States: recorded → `lucide:MessageSquareText` +
+count in `text-primary`; none → `lucide:MessageSquareOff` in
+`text-muted-foreground/40`; not-applicable (cold / no match) → nothing. The
+expand shows "No reply thread recorded yet" (`MessageSquareOff`) in the
+zero case, in place of the Summarize button.
+
 ### Checkbox (`src/components/ui/checkbox.tsx`)
 
 Added 2026-06-08 for the `/leads` row selection (the first checkbox in the app). Base-UI `Checkbox` (`@base-ui/react/checkbox`) styled shadcn-like: `size-4 rounded-[0.3rem] border border-input`, checked/indeterminate states fill with `bg-primary text-primary-foreground` (driven by base-UI's `data-[checked]` / `data-[indeterminate]` attributes), `focus-visible:ring-[3px] ring-ring/50`. The indicator shows `lucide:Check`, or `lucide:Minus` when `indeterminate` (used for the header "select all on page" tri-state).
@@ -267,6 +302,8 @@ Surrounding layout: `login/page.tsx` puts the headline column and the ASCII colu
 | Chat surface | `src/app/(app)/chat/page.tsx`, `src/components/chat/*.tsx` |
 | Leads browser | `src/app/(app)/leads/page.tsx`, `src/components/leads/leads-browser.tsx` |
 | Shared lead cells/badges | `src/components/leads/lead-display.tsx` |
+| Touchpoint summary control | `src/components/leads/touchpoint-summary.tsx` |
+| Thread → prompt helper | `src/lib/touchpoint-thread.ts` |
 | Leads filter parsing | `src/lib/leads-filters.ts` |
 | Checkbox primitive | `src/components/ui/checkbox.tsx` |
 | MultiSelect / PillGroup | `src/components/ui/multi-select.tsx` |

@@ -1,7 +1,12 @@
-import Link from "next/link";
-import { CheckCircle2, ExternalLink } from "lucide-react";
+import {
+  CheckCircle2,
+  ExternalLink,
+  MessageSquareText,
+  MessageSquareOff,
+} from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
+import { TouchpointSummary } from "@/components/leads/touchpoint-summary";
 
 // Shared lead-row presentation, extracted from campaign-detail.tsx so the
 // cross-campaign /leads browser renders cells, badges, and the touchpoint
@@ -31,7 +36,19 @@ export type Lead = {
   default_profile_url: string | null;
   temperature: Temperature | null;
   touchpoint_match: TouchpointMatch | null;
+  touchpoint_summary: TouchpointSummaryData;
 };
+
+// Cached LLM summary of a lead's Smartlead reply thread, written on demand by
+// POST /api/leads/[id]/summarize-touchpoints (migration 0009). Null until a
+// teammate clicks "Summarize touchpoints" for this lead.
+export type TouchpointSummaryData = {
+  summary: string;
+  signal: string;
+  thread_count?: number;
+  generated_at?: string;
+  model?: string;
+} | null;
 
 // Shape written by classify_campaign_temperature (migration 0006). Both
 // sub-objects are absent when the lead didn't match that source.
@@ -50,6 +67,9 @@ export type TouchpointMatch = {
     last_sent?: string | null;
     bounced?: boolean;
     unsubscribed?: boolean;
+    // Count of actual thread messages (sent + reply bodies) we hold for this
+    // lead. Gates the "Summarize touchpoints" button — only shown when > 0.
+    reply_thread_count?: number;
     events?: TouchpointEvent[];
   };
   last_activity?: string | null;
@@ -69,7 +89,7 @@ export type TouchpointEvent = {
 // The lead columns both the campaign-detail and /leads queries select. The
 // /leads query adds `location` and the joined campaign on top of these.
 export const LEAD_COLS =
-  "id, full_name, title, company_name, status, function_qualification, function_reasoning, icp_qualification, seniority_scoring, domain_classification, subdomain, subdomain_justification, domain_reasoning, priority_level, product_area, lead_summary, error, default_profile_url, temperature, touchpoint_match";
+  "id, full_name, title, company_name, status, function_qualification, function_reasoning, icp_qualification, seniority_scoring, domain_classification, subdomain, subdomain_justification, domain_reasoning, priority_level, product_area, lead_summary, error, default_profile_url, temperature, touchpoint_match, touchpoint_summary";
 
 export const temperatureBadge: Record<Temperature, string> = {
   hot: "border-red-500/40 bg-red-500/10 text-red-400",
@@ -124,6 +144,45 @@ export function TemperatureBadge({ value }: { value: Temperature | null }) {
     >
       {value}
     </Badge>
+  );
+}
+
+// How many Smartlead reply-thread messages we hold for this lead.
+//   null  -> not applicable (cold / not cross-checked / no CRM match)
+//   0     -> hot/warm, cross-checked, but no thread recorded yet
+//   >0    -> recorded
+// Recomputed by classify_campaign_temperature on every cross-check, so it
+// fills in on its own as the threads table grows and a campaign is re-checked.
+export function threadCountOf(l: Lead): number | null {
+  if (!hasTouchpoints(l)) return null;
+  return l.touchpoint_match?.smartlead?.reply_thread_count ?? 0;
+}
+
+// Compact "is a reply thread on file?" marker shown next to the Temp badge in
+// the lead tables — lit when recorded (with the count), dim when none.
+export function ThreadMarker({ lead }: { lead: Lead }) {
+  const n = threadCountOf(lead);
+  if (n == null) return null;
+  const has = n > 0;
+  return (
+    <span
+      title={
+        has
+          ? `${n} reply message${n === 1 ? "" : "s"} on file`
+          : "No reply thread recorded yet"
+      }
+      className={cn(
+        "inline-flex items-center gap-0.5 text-[10px] tabular-nums",
+        has ? "text-primary" : "text-muted-foreground/40"
+      )}
+    >
+      {has ? (
+        <MessageSquareText className="h-3 w-3" />
+      ) : (
+        <MessageSquareOff className="h-3 w-3" />
+      )}
+      {has ? n : null}
+    </span>
   );
 }
 
@@ -233,8 +292,10 @@ export function DetailGrid({ lead }: { lead: Lead }) {
       </div>
       {showTouchpoints ? (
         <TouchpointHistory
+          leadId={lead.id}
           temperature={lead.temperature as Temperature}
           match={lead.touchpoint_match!}
+          summary={lead.touchpoint_summary}
         />
       ) : null}
     </div>
@@ -260,15 +321,20 @@ const actionVerb: Record<NonNullable<TouchpointEvent["action"]>, string> = {
 // actual touchpoints (each Smartlead email's subject + what happened + when),
 // most-recent first.
 export function TouchpointHistory({
+  leadId,
   temperature,
   match,
+  summary,
 }: {
+  leadId: string;
   temperature: Temperature;
   match: NonNullable<TouchpointMatch>;
+  summary?: TouchpointSummaryData;
 }) {
   const hs = match.hubspot;
   const sl = match.smartlead;
   const events = sl?.events ?? [];
+  const threadCount = sl?.reply_thread_count ?? 0;
 
   return (
     <div className="border-t border-border pt-3">
@@ -278,6 +344,19 @@ export function TouchpointHistory({
         </span>
         <TemperatureBadge value={temperature} />
       </div>
+
+      {threadCount > 0 ? (
+        <TouchpointSummary
+          leadId={leadId}
+          initial={summary ?? null}
+          threadCount={threadCount}
+        />
+      ) : (
+        <div className="mb-3 inline-flex items-center gap-1 text-[11px] text-muted-foreground">
+          <MessageSquareOff className="h-3 w-3" />
+          No reply thread recorded yet
+        </div>
+      )}
 
       {hs ? (
         <div className="mb-2 text-foreground/90">
