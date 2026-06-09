@@ -44,6 +44,7 @@ import {
   FunctionVerdict,
   LeadStatus,
   TemperatureBadge,
+  ThreadMarker,
   hasLeadDetail,
 } from "@/components/leads/lead-display";
 
@@ -464,7 +465,10 @@ export function CampaignDetail({
                       <FunctionVerdict value={l.function_qualification} />
                     </TableCell>
                     <TableCell>
-                      <TemperatureBadge value={l.temperature} />
+                      <div className="flex items-center gap-1.5">
+                        <TemperatureBadge value={l.temperature} />
+                        <ThreadMarker lead={l} />
+                      </div>
                     </TableCell>
                     <TableCell className="truncate max-w-[140px]">
                       {l.icp_qualification ?? (
