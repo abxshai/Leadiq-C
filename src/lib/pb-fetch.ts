@@ -1,17 +1,21 @@
 import Papa from "papaparse";
+import { rowToLead, INPUT_COLUMNS, type ParsedLead } from "./lead-parser";
 
-// Qualification input columns, matching src/lib/lead-parser.ts aliases.
-const QUAL_COLS = [
-  "defaultProfileUrl",
-  "fullName",
-  "firstName",
-  "lastName",
-  "companyName",
-  "title",
-  "summary",
-  "titleDescription",
-  "location",
-] as const;
+// Canonical input field → the camelCase header we emit in the trimmed CSV, so
+// the output keeps the historical Sales-Nav header names no matter which PB
+// export schema the raw rows came from. Parallel to INPUT_COLUMNS.
+const OUTPUT_HEADER: Record<keyof ParsedLead, string> = {
+  default_profile_url: "defaultProfileUrl",
+  full_name: "fullName",
+  first_name: "firstName",
+  last_name: "lastName",
+  company_name: "companyName",
+  title: "title",
+  summary: "summary",
+  title_description: "titleDescription",
+  location: "location",
+};
+const OUTPUT_COLS = INPUT_COLUMNS.map((k) => OUTPUT_HEADER[k]);
 
 const PB_API = "https://api.phantombuster.com/api/v2";
 
@@ -90,14 +94,39 @@ function extractCsvUrlFromLog(log: string): string | null {
 
 function trim(rawCsv: string, launchedAtMs: number): { csv: string; rowCount: number } {
   const cutoff = new Date(launchedAtMs).toISOString();
-  const { data } = Papa.parse<PbRow>(rawCsv, { header: true, skipEmptyLines: true });
-  const filtered = data.filter((r) => r.timestamp && r.timestamp >= cutoff);
-  const projected = filtered.map((r) => {
-    const out: Record<string, string> = {};
-    for (const c of QUAL_COLS) out[c] = r[c] ?? "";
-    return out;
+  const { data, meta } = Papa.parse<PbRow>(rawCsv, {
+    header: true,
+    skipEmptyLines: true,
   });
-  const csv = Papa.unparse(projected, { columns: [...QUAL_COLS] });
+  // Run-isolation filter: drop rows older than this container's launch so
+  // accumulated rows on a shared agent's S3 file don't leak in. PB's Sales Nav
+  // export stamps each row with `timestamp`; the LinkedIn Profile Scraper uses
+  // `refreshedAt`. Only filter when such a column actually exists — otherwise
+  // keep every row rather than silently dropping the whole scrape.
+  const fields = meta.fields ?? [];
+  const tsKey = fields.includes("timestamp")
+    ? "timestamp"
+    : fields.includes("refreshedAt")
+      ? "refreshedAt"
+      : null;
+  const filtered = tsKey
+    ? data.filter((r) => {
+        const v = r[tsKey];
+        return v != null && v >= cutoff;
+      })
+    : data;
+  // Map each raw row to the canonical 9 input fields via the shared parser
+  // mapper (handles both PB export schemas, synthesizes full_name, etc.), drop
+  // rows with neither URL nor name, then emit under the camelCase headers.
+  const projected = filtered
+    .map((r) => rowToLead(r))
+    .filter((l) => l.default_profile_url || l.full_name)
+    .map((l) => {
+      const out: Record<string, string> = {};
+      for (const k of INPUT_COLUMNS) out[OUTPUT_HEADER[k]] = l[k] ?? "";
+      return out;
+    });
+  const csv = Papa.unparse(projected, { columns: OUTPUT_COLS });
   return { csv, rowCount: projected.length };
 }
 

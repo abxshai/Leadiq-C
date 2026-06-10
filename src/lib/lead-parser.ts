@@ -19,7 +19,7 @@ export type ParseResult = {
   duplicatesSkipped: number;
 };
 
-const INPUT_COLUMNS: (keyof ParsedLead)[] = [
+export const INPUT_COLUMNS: (keyof ParsedLead)[] = [
   "default_profile_url",
   "full_name",
   "first_name",
@@ -114,7 +114,7 @@ function str(v: unknown): string | null {
   return s.length > 0 ? s : null;
 }
 
-function rowToLead(row: Record<string, unknown>): ParsedLead {
+export function rowToLead(row: Record<string, unknown>): ParsedLead {
   const lead: ParsedLead = {
     default_profile_url: null,
     full_name: null,
