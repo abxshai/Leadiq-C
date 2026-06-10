@@ -31,28 +31,70 @@ const INPUT_COLUMNS: (keyof ParsedLead)[] = [
   "location",
 ];
 
-// Case-insensitive alias → canonical column map.
-// Matches both the CSV export format ("defaultProfileUrl") and snake_case.
-const ALIASES: Record<string, keyof ParsedLead> = {
-  defaultprofileurl: "default_profile_url",
-  default_profile_url: "default_profile_url",
-  profile_url: "default_profile_url",
-  fullname: "full_name",
-  full_name: "full_name",
-  firstname: "first_name",
-  first_name: "first_name",
-  lastname: "last_name",
-  last_name: "last_name",
-  companyname: "company_name",
-  company_name: "company_name",
-  company: "company_name",
-  title: "title",
-  summary: "summary",
-  titledescription: "title_description",
-  title_description: "title_description",
-  description: "title_description",
-  location: "location",
+// Canonical column → every header that maps to it, across BOTH Phantombuster
+// export schemas we ingest. This table is the single source of truth for the
+// old↔new column correspondence:
+//
+//   OLD = Sales Nav Search Export   (the historical 9-column input set)
+//   NEW = LinkedIn Profile Scraper  (the result.csv shape, 53 columns)
+//
+// | Canonical           | OLD header        | NEW header(s)                      |
+// |---------------------|-------------------|------------------------------------|
+// | default_profile_url | defaultProfileUrl | profileUrl, linkedinProfileUrl     |
+// | full_name           | fullName          | — (synthesized from first + last)  |
+// | first_name          | firstName         | firstName                          |
+// | last_name           | lastName          | lastName                           |
+// | company_name        | companyName       | companyName                        |
+// | title               | title             | linkedinJobTitle                   |
+// | summary             | summary           | linkedinHeadline (closest proxy*)  |
+// | title_description   | titleDescription  | linkedinJobDescription             |
+// | location            | location          | location                           |
+//
+// * The profile-scraper export has no person "About" field; linkedinHeadline
+//   is the only person-level free text, so we feed it into `summary` rather
+//   than lose the qualifier's richest signal. (`linkedinDescription` is the
+//   *company* blurb, not the person — deliberately NOT mapped.)
+//
+// Extra forms (snake_case, "company", "description") are tolerance aliases for
+// hand-edited / re-exported files. Headers are canonicalized (lowercased,
+// whitespace stripped) before lookup, so casing and spacing don't matter.
+//
+// NOTE: do NOT map "scraperFullName" — in the NEW export that's the phantom
+// operator, not the lead.
+const ALIAS_GROUPS: Record<keyof ParsedLead, string[]> = {
+  default_profile_url: [
+    "defaultProfileUrl", // OLD
+    "profileUrl", // NEW (input URL)
+    "linkedinProfileUrl", // NEW (resolved URL, fallback)
+    "profile_url",
+  ],
+  full_name: ["fullName"], // OLD; NEW synthesizes from first + last (rowToLead)
+  first_name: ["firstName"],
+  last_name: ["lastName"],
+  company_name: ["companyName", "company"],
+  title: ["title" /* OLD */, "linkedinJobTitle" /* NEW */],
+  summary: ["summary" /* OLD */, "linkedinHeadline" /* NEW */],
+  title_description: [
+    "titleDescription", // OLD
+    "linkedinJobDescription", // NEW
+    "description",
+  ],
+  location: ["location"],
 };
+
+// Flatten the groups into a fast canonicalized-header → canonical-column map.
+// snake_case is auto-derived from the camelCase form, so e.g. both
+// "defaultProfileUrl" and "default_profile_url" resolve without listing both.
+const ALIASES: Record<string, keyof ParsedLead> = {};
+for (const [canon, headers] of Object.entries(ALIAS_GROUPS) as [
+  keyof ParsedLead,
+  string[],
+][]) {
+  for (const h of headers) {
+    ALIASES[h.toLowerCase().replace(/\s+/g, "")] = canon; // camelCase form
+    ALIASES[h.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase()] = canon; // snake_case form
+  }
+}
 
 function canonical(header: string): keyof ParsedLead | null {
   const key = header.trim().toLowerCase().replace(/\s+/g, "");
@@ -89,6 +131,17 @@ function rowToLead(row: Record<string, unknown>): ParsedLead {
     if (!col) continue;
     if (lead[col] === null) lead[col] = str(v);
   }
+  // The profile-scraper export has no fullName column — synthesize it from
+  // first + last so the row survives the URL-or-name filter and the preview
+  // shows a name. The Sales Nav export already provides full_name, so this
+  // fallback only fires when it's genuinely absent.
+  if (lead.full_name === null) {
+    const composed = [lead.first_name, lead.last_name]
+      .filter(Boolean)
+      .join(" ")
+      .trim();
+    if (composed.length > 0) lead.full_name = composed;
+  }
   return lead;
 }
 
@@ -116,7 +169,19 @@ function build(rows: Record<string, unknown>[], detected: string[]): ParseResult
   const canonicalHeaders = new Set(
     detected.map((h) => canonical(h)).filter((x): x is keyof ParsedLead => !!x)
   );
-  const missing = INPUT_COLUMNS.filter((c) => !canonicalHeaders.has(c));
+  const missing = INPUT_COLUMNS.filter((c) => {
+    if (canonicalHeaders.has(c)) return false;
+    // full_name is synthesized from first + last (see rowToLead), so it's not
+    // "missing" when both of those columns are present.
+    if (
+      c === "full_name" &&
+      canonicalHeaders.has("first_name") &&
+      canonicalHeaders.has("last_name")
+    ) {
+      return false;
+    }
+    return true;
+  });
 
   // Drop rows with neither URL nor name (nothing to qualify), then dedupe
   // by default_profile_url. The leads table has `unique (campaign_id,
