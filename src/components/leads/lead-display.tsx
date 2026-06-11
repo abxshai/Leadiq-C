@@ -3,6 +3,13 @@ import {
   ExternalLink,
   MessageSquareText,
   MessageSquareOff,
+  Clock,
+  Ban,
+  ThumbsDown,
+  ThumbsUp,
+  CalendarCheck,
+  UserX,
+  Undo2,
 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { cn } from "@/lib/utils";
@@ -45,10 +52,28 @@ export type Lead = {
 export type TouchpointSummaryData = {
   summary: string;
   signal: string;
+  // LLM-judged stance from the lead's replies (migration 0011 + summarize
+  // route). Refines the classifier's reply_status for ambiguous "replied" cases.
+  // "neutral" = replied but stance unclear (renders no chip).
+  status?: ReplyStatus | "neutral" | null;
   thread_count?: number;
   generated_at?: string;
   model?: string;
 } | null;
+
+// What a lead's Smartlead reply actually was. Written by
+// classify_campaign_temperature (lead_category + an OOO body-pattern); the
+// on-demand summary can refine a bare "replied" into a real stance. Display
+// only — does NOT (yet) affect hot/warm/cold bucketing.
+export type ReplyStatus =
+  | "ooo"
+  | "do_not_contact"
+  | "not_interested"
+  | "wrong_person"
+  | "bounce"
+  | "interested"
+  | "meeting"
+  | "replied";
 
 // Shape written by classify_campaign_temperature (migration 0006). Both
 // sub-objects are absent when the lead didn't match that source.
@@ -70,6 +95,9 @@ export type TouchpointMatch = {
     // Count of actual thread messages (sent + reply bodies) we hold for this
     // lead. Gates the "Summarize touchpoints" button — only shown when > 0.
     reply_thread_count?: number;
+    // What the lead's reply was (OOO / not interested / interested / …) so a
+    // timestamp-only "hot" can be read in context. See ReplyStatus.
+    reply_status?: ReplyStatus | null;
     events?: TouchpointEvent[];
   };
   last_activity?: string | null;
@@ -302,6 +330,74 @@ export function DetailGrid({ lead }: { lead: Lead }) {
   );
 }
 
+// Reply-status chip shown beside the temperature in the touchpoint expand, so
+// a "hot" tagged purely on a reply timestamp can be read in context — e.g. an
+// OOO auto-reply or a "do not contact" isn't real interest. "replied" (a bare,
+// un-categorized reply) renders nothing — there's no signal beyond the existing
+// "Replied to" event until the summary refines it.
+const replyStatusMeta: Record<
+  Exclude<ReplyStatus, "replied">,
+  { label: string; cls: string; Icon: typeof Clock }
+> = {
+  ooo: {
+    label: "OOO reply",
+    cls: "border-muted-foreground/30 bg-muted/30 text-muted-foreground",
+    Icon: Clock,
+  },
+  do_not_contact: {
+    label: "Do not contact",
+    cls: "border-destructive/40 bg-destructive/10 text-destructive",
+    Icon: Ban,
+  },
+  not_interested: {
+    label: "Not interested",
+    cls: "border-red-500/40 bg-red-500/10 text-red-400",
+    Icon: ThumbsDown,
+  },
+  wrong_person: {
+    label: "Wrong person",
+    cls: "border-muted-foreground/30 bg-muted/30 text-muted-foreground",
+    Icon: UserX,
+  },
+  bounce: {
+    label: "Bounced",
+    cls: "border-muted-foreground/30 bg-muted/30 text-muted-foreground",
+    Icon: Undo2,
+  },
+  interested: {
+    label: "Interested",
+    cls: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
+    Icon: ThumbsUp,
+  },
+  meeting: {
+    label: "Meeting",
+    cls: "border-emerald-500/40 bg-emerald-500/10 text-emerald-400",
+    Icon: CalendarCheck,
+  },
+};
+
+export function ReplyStatusChip({
+  status,
+}: {
+  status?: ReplyStatus | "neutral" | null;
+}) {
+  if (!status || status === "replied" || status === "neutral") return null;
+  const meta = replyStatusMeta[status];
+  if (!meta) return null;
+  const { label, cls, Icon } = meta;
+  return (
+    <span
+      className={cn(
+        "inline-flex items-center gap-1 rounded-full border px-2 py-0.5 text-[10px] font-medium",
+        cls
+      )}
+    >
+      <Icon className="h-3 w-3" />
+      {label}
+    </span>
+  );
+}
+
 const actionColor: Record<NonNullable<TouchpointEvent["action"]>, string> = {
   replied: "text-emerald-400",
   clicked: "text-primary",
@@ -335,6 +431,9 @@ export function TouchpointHistory({
   const sl = match.smartlead;
   const events = sl?.events ?? [];
   const threadCount = sl?.reply_thread_count ?? 0;
+  // Prefer the LLM-refined stance from a cached summary; fall back to the
+  // classifier's auto-detected reply_status (OOO / category).
+  const replyStatus = summary?.status ?? sl?.reply_status ?? null;
 
   return (
     <div className="border-t border-border pt-3">
@@ -343,6 +442,7 @@ export function TouchpointHistory({
           Touchpoint history
         </span>
         <TemperatureBadge value={temperature} />
+        <ReplyStatusChip status={replyStatus} />
       </div>
 
       {threadCount > 0 ? (
