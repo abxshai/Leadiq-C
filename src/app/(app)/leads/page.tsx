@@ -50,13 +50,18 @@ export default async function LeadsPage({
   };
   const campaigns = (campaignsRes.data as { id: string; name: string }[]) ?? [];
 
-  // `campaigns!inner` filters orphaned leads (deleted campaigns) and surfaces
-  // the campaign name for the row subtitle. count: 'exact' drives pagination.
-  const cols = `${LEAD_COLS}, location, campaign_id, campaigns!inner(id, name)`;
+  // /leads dedupes on the LinkedIn profile URL (the UID) via the distinct_leads
+  // view (migration 0010): one row per person across all campaigns, keyed on
+  // the normalized URL, keeping their most recently processed row. The view's
+  // inner join to campaigns also drops orphaned leads and exposes the campaign
+  // name as a flat `campaign_name` column — we reshape it back into the
+  // { campaigns: { id, name } } shape the row component expects. count: 'exact'
+  // drives pagination (now over the deduped set).
+  const cols = `${LEAD_COLS}, location, campaign_id, campaign_name`;
   const from = (filters.page - 1) * LEADS_PAGE_SIZE;
 
   const filtered = applyLeadFilters(
-    supabase.from("leads").select(cols, { count: "exact" }),
+    supabase.from("distinct_leads").select(cols, { count: "exact" }),
     filters
   );
 
@@ -64,7 +69,14 @@ export default async function LeadsPage({
     .order("processed_at", { ascending: false })
     .range(from, from + LEADS_PAGE_SIZE - 1);
 
-  const leads = (data as unknown as LeadRow[]) ?? [];
+  const leads = (
+    (data as unknown as (LeadRow & { campaign_name: string | null })[]) ?? []
+  ).map((l) => ({
+    ...l,
+    campaigns: l.campaign_name
+      ? { id: l.campaign_id, name: l.campaign_name }
+      : null,
+  }));
   const total = count ?? 0;
 
   return (

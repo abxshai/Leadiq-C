@@ -63,11 +63,14 @@ type LeadExport = {
   product_area: string | null;
   lead_summary: string | null;
   temperature: string | null;
-  campaigns: { name: string | null } | null;
+  campaign_name: string | null;
 };
 
+// Reads the deduped distinct_leads view (migration 0010) so the export matches
+// the deduped /leads browser — one row per person (by normalized LinkedIn URL).
+// campaign_name is a flat column on the view (no PostgREST embed needed).
 const LEAD_COLS =
-  "default_profile_url, full_name, first_name, last_name, company_name, title, summary, title_description, location, agent_full_name, function_qualification, function_reasoning, icp_qualification, seniority_scoring, domain_classification, subdomain, subdomain_justification, domain_reasoning, priority_level, product_area, lead_summary, temperature, campaigns!inner(name)";
+  "default_profile_url, full_name, first_name, last_name, company_name, title, summary, title_description, location, agent_full_name, function_qualification, function_reasoning, icp_qualification, seniority_scoring, domain_classification, subdomain, subdomain_justification, domain_reasoning, priority_level, product_area, lead_summary, temperature, campaign_name";
 
 export async function GET(request: Request) {
   const sp = new URL(request.url).searchParams;
@@ -84,7 +87,7 @@ export async function GET(request: Request) {
   const PAGE_SIZE = 1000;
   const all: LeadExport[] = [];
   for (let start = 0; ; start += PAGE_SIZE) {
-    const base = supabase.from("leads").select(LEAD_COLS);
+    const base = supabase.from("distinct_leads").select(LEAD_COLS);
     const query = selectedMode
       ? base.in("id", ids)
       : applyLeadFilters(base, filters);
@@ -100,7 +103,7 @@ export async function GET(request: Request) {
   }
 
   const rows = all.map((l) => ({
-    Campaign: l.campaigns?.name ?? null,
+    Campaign: l.campaign_name ?? null,
     defaultProfileUrl: l.default_profile_url,
     fullName: l.full_name,
     firstName: l.first_name,
