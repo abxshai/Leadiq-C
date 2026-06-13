@@ -1,6 +1,6 @@
 # Lead-IQ — Product & Architecture Documentation
 
-*Last updated: 2026-06-09*
+*Last updated: 2026-06-13*
 
 Lead-IQ is an internal self-serve tool at Deccan AI that qualifies
 LinkedIn leads against a target Ideal Customer Profile (ICP) using a
@@ -406,9 +406,28 @@ Groq openai/gpt-oss-120b (JSON mode)
 ## 8. Current state
 
 **Shipped:**
+- **Dual-schema Phantombuster ingest** — the parser maps both PB export
+  shapes onto the canonical 9 input columns: the Sales Nav Search Export
+  (`defaultProfileUrl`/`fullName`/…) and the LinkedIn Profile Scraper
+  (`profileUrl`/`linkedinJobTitle`/`linkedinJobDescription`, headline →
+  summary), synthesizing `full_name` from first+last when absent. Both the
+  upload flow and the PB fetch → Push-to-Campaign flow route through one
+  shared mapper, so a profile-scraper file no longer parses to zero rows.
+  The qualification agent also echoes the lead's name into `agent_full_name`
+  (input vs. output cross-check in the CSV export).
+- **Reply-status + OOO/negative-reply gating** — for leads that bridge to a
+  Smartlead reply thread, the classifier records what the reply actually was
+  (`reply_status`: OOO / not interested / do-not-contact / interested /
+  meeting / …), from the Smartlead category, an OOO body-pattern, and an
+  instant-auto-reply heuristic. A reply-status chip shows it beside the
+  temperature, and OOO / not-interested / unsubscribe replies are **gated out
+  of hot** (they fall to warm) so an auto-reply or a "stop emailing me" never
+  reads as a hot lead. Migrations `0011`–`0014`.
 - **`/leads` cross-campaign browser (M3.5)** — every qualified lead
   across all campaigns in one server-filtered, URL-driven, paginated
-  table (rich campaign-detail-style rows + inline expand). Row
+  table (rich campaign-detail-style rows + inline expand), **deduped to one
+  row per person on the LinkedIn URL** via the `distinct_leads` view
+  (migration `0010`) so someone in multiple campaigns appears once. Row
   **checkboxes** with cross-page selection feed a sticky bar that
   **exports the selection to CSV** or **copies LinkedIn URLs**, plus an
   "Export all (filtered)". Filters: campaign, domain, ICP,
@@ -555,12 +574,16 @@ Groq openai/gpt-oss-120b (JSON mode)
 - **Multi-tenant** — single-workspace mode for now, by choice.
 
 **Known limitations:**
-- Lead temperature (M-CX1) classifies a Smartlead reply as **hot** from
-  `reply_time` alone — it has no reply *content* (Smartlead's `lead_category`
-  is null in the ingest), so an out-of-office auto-reply is indistinguishable
-  from a genuine interested reply and gets tagged hot. Accepted for now; the
-  fix is gated on the ingest team landing a replies/threads table (see
-  roadmap backlog — "reply-content citations + OOO filtering").
+- Reply-thread coverage is narrow (the real current limit, after OOO gating
+  landed 2026-06-13). `reply_status` and the hot-gating only apply to leads
+  that bridge to `crm.smartlead_reply_threads` — and since `leads` carry no
+  email, that bridge runs through HubSpot contacts, so only ~8 of the 237
+  thread people currently connect. A name-based fallback (already live in
+  `get_lead_reply_threads`) would reach ~28; widening the classifier bridge
+  is a follow-up. Also, reply bodies are sometimes empty in the ingest (the
+  event is logged but the text dropped — e.g. an OOO autoresponder); the
+  instant-auto-reply heuristic works around it, but full bodies from the
+  ingest would make detection and summaries better.
 - A server restart while a campaign is running abandons the in-process
   worker — but the campaign is no longer stuck visibly: `instrumentation.ts`
   flips zombies to `canceled` (resumable) on the next boot. User just
