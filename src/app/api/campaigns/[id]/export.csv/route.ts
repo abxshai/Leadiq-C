@@ -28,6 +28,7 @@ const COLUMNS = [
   "Priority Level",
   "Product Area / Team",
   "Lead Summary",
+  "Temperature",
 ];
 
 type LeadExport = {
@@ -52,6 +53,7 @@ type LeadExport = {
   priority_level: string | null;
   product_area: string | null;
   lead_summary: string | null;
+  temperature: string | null;
 };
 
 export async function GET(
@@ -80,7 +82,7 @@ export async function GET(
   // would otherwise export only the first 1000 leads silently.
   const PAGE_SIZE = 1000;
   const leadCols =
-    "default_profile_url, full_name, first_name, last_name, company_name, title, summary, title_description, location, agent_full_name, function_qualification, function_reasoning, icp_qualification, seniority_scoring, domain_classification, subdomain, subdomain_justification, domain_reasoning, priority_level, product_area, lead_summary";
+    "default_profile_url, full_name, first_name, last_name, company_name, title, summary, title_description, location, agent_full_name, function_qualification, function_reasoning, icp_qualification, seniority_scoring, domain_classification, subdomain, subdomain_justification, domain_reasoning, priority_level, product_area, lead_summary, temperature";
   const allLeads: LeadExport[] = [];
   for (let start = 0; ; start += PAGE_SIZE) {
     let query = supabase
@@ -125,6 +127,7 @@ export async function GET(
     "Priority Level": l.priority_level,
     "Product Area / Team": l.product_area,
     "Lead Summary": l.lead_summary,
+    "Temperature": l.temperature,
   }));
 
   const csv = Papa.unparse({ fields: COLUMNS, data: rows }, { quotes: true });
