@@ -560,6 +560,7 @@ Groq openai/gpt-oss-120b (JSON mode)
 - Major Mono Display headings + JetBrains Mono body; ASCII hero login page; password-based shared auth
 
 **Not yet shipped (roadmap):**
+- **Opportunities surface (`/opportunities`)** *(proposed — M-CX3)* — a dedicated view of the live, positive Smartlead conversations (`reply_status` `meeting`/`interested`, plus HubSpot pipeline stages), reusing the reply-status classification (`0011`–`0014`) + the M-CX2 summaries, with the noise statuses (OOO / not-interested / do-not-contact / wrong-person / bounce) suppressed. Sourced from `crm.smartlead_reply_threads` (237 conversations / 13 campaigns today; ~34 are clear Meeting/Interested opportunities). Scope — tie to qualified leads (~8 bridge) vs all CRM conversations (richer) — TBD; see roadmap **M-CX3**.
 - **Semantic similarity in LeadQuery** *(M-AG2)* — pgvector + Supabase gte-small embeddings + a `semantic_search_leads` tool. Lets the agent answer concept-match questions ("find leads about AI infra even if their title says 'ML platform engineer'"). Design lives in [`agent-section-plan.md`](./agent-section-plan.md) §4 + §8 (tagged **[M-AG2 — DEFERRED]**).
 - **Clay webhook push** *(M4 — parked 2026-05-28)* — Smartlead/HubSpot via M-CX1 covers the outreach pattern from the enrichment angle; revisit Clay if a push-style gap remains after M-CX1 ships.
 - **Analytics scale fix** — today the page fetches every processed lead

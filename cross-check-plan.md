@@ -1,6 +1,6 @@
 # Lead-IQ — Touchpoint cross-check + lead temperature plan
 
-*Last updated: 2026-06-05*
+*Last updated: 2026-06-13*
 
 Companion docs: [`lead-iq-roadmap.md`](./lead-iq-roadmap.md), [`DOCS.md`](./DOCS.md), [`UI.md`](./UI.md).
 
@@ -11,6 +11,8 @@ Companion docs: [`lead-iq-roadmap.md`](./lead-iq-roadmap.md), [`DOCS.md`](./DOCS
 > - **§6 worker hook → shipped** but trivial: one soft-fail `supabase.rpc('classify_campaign_temperature', …)` call after the completion gate (no per-lead `pendingChecks`, no `X-Lookup-Key` header). Backfill is `POST /api/campaigns/[id]/cross-check`.
 >
 > The sections below are kept for historical context (the contract we'd have needed had the data stayed external). Read the roadmap's 2026-06-05 Shipped entry for what actually exists.
+>
+> **Lineage since (2026-06-13):** this doc is the origin of the touchpoint thread, which has since grown well past temperature. **M-CX2** (2026-06-09) added on-demand LLM summaries over the new `crm.smartlead_reply_threads` table (real reply *bodies*, not just engagement metadata). Migrations **`0011`–`0014`** (2026-06-13) derive a per-reply **`reply_status`** (`meeting` / `interested` / `ooo` / `not_interested` / `do_not_contact` / `wrong_person` / `bounce` / `replied`) into `touchpoint_match.smartlead`, surface it via a `ReplyStatusChip`, and **gate OOO + negative replies out of *hot*** — closing this plan's §3.2 / §7-Q5 OOO concern. Next: **M-CX3 — an `/opportunities` surface built on `reply_status`** (meeting/interested conversations), proposed in the roadmap.
 
 ---
 
