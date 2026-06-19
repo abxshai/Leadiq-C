@@ -32,6 +32,9 @@ type Stats = {
   processed_count: number;
   failed_count: number;
   qualified_count: number;
+  hot_count: number;
+  warm_count: number;
+  cold_count: number;
 };
 
 const statusClasses: Record<CampaignRow["status"], string> = {
@@ -48,6 +51,9 @@ const ZERO_STATS: Omit<Stats, "campaign_id"> = {
   processed_count: 0,
   failed_count: 0,
   qualified_count: 0,
+  hot_count: 0,
+  warm_count: 0,
+  cold_count: 0,
 };
 
 export default async function CampaignsPage() {
@@ -150,6 +156,11 @@ export default async function CampaignsPage() {
                         s.failed_count > 0 ? "text-destructive" : undefined
                       }
                     />
+                    <TempStat
+                      hot={s.hot_count}
+                      warm={s.warm_count}
+                      cold={s.cold_count}
+                    />
                   </div>
                   <ArrowRight className="h-4 w-4 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
                 </Link>
@@ -177,6 +188,46 @@ function Stat({
       <div className={accent ?? "text-foreground"}>{value}</div>
       <div className="text-[11px] text-muted-foreground uppercase tracking-wide">
         {label}
+      </div>
+    </div>
+  );
+}
+
+// Per-campaign hot/warm/cold breakdown (from campaign_stats). Temperature is
+// only set on qualified leads after cross-check, so a not-yet-cross-checked
+// campaign reads 0/0/0 and renders a muted dash — it fills in post-run.
+function TempStat({
+  hot,
+  warm,
+  cold,
+}: {
+  hot: number;
+  warm: number;
+  cold: number;
+}) {
+  const total = hot + warm + cold;
+  return (
+    <div
+      className="text-right"
+      title={
+        total > 0
+          ? `${hot} hot · ${warm} warm · ${cold} cold`
+          : "Not cross-checked yet"
+      }
+    >
+      {total > 0 ? (
+        <div className="flex items-center justify-end gap-1">
+          <span className="text-red-400">{hot}</span>
+          <span className="text-muted-foreground/40">·</span>
+          <span className="text-amber-400">{warm}</span>
+          <span className="text-muted-foreground/40">·</span>
+          <span className="text-muted-foreground">{cold}</span>
+        </div>
+      ) : (
+        <div className="text-muted-foreground">—</div>
+      )}
+      <div className="text-[11px] text-muted-foreground uppercase tracking-wide">
+        hot·warm·cold
       </div>
     </div>
   );
