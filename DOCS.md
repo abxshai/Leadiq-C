@@ -1,6 +1,6 @@
 # Lead-IQ — Product & Architecture Documentation
 
-*Last updated: 2026-06-13*
+*Last updated: 2026-06-22*
 
 Lead-IQ is an internal self-serve tool at Deccan AI that qualifies
 LinkedIn leads against a target Ideal Customer Profile (ICP) using a
@@ -44,7 +44,8 @@ editing, no n8n handoff, no CSV relay.
 
 ## 2. How it works (user's view)
 
-The product is four primary screens plus analytics and placeholders:
+The product is four primary screens plus cross-campaign browsing,
+opportunities, chat, and placeholders:
 
 **(a) Scrape — pull a Sales Nav run from Phantombuster.** Pick one of
 your PB phantoms from a dropdown (populated live from the PB API);
@@ -85,20 +86,7 @@ with its status, qualification verdict, seniority score, priority
 level, and a direct link back to the LinkedIn profile. Export CSV
 whenever you want, or delete the campaign with a confirmation dialog.
 
-**(e) Analytics — qualified leads across every campaign, filterable.**
-Filter bar at the top: time range (7d / 30d / 90d / All), bucket (day
-/ week / month), plus multi-select dropdowns for campaign, business
-unit (`domain_classification`), ICP qualification, and company. Every
-filter composes — KPI cards (qualified, qualification rate, processed,
-avg seniority, active campaigns, failed), the time-series area chart,
-and the four breakdown bar charts (per business unit, per ICP, per
-company top-10, per campaign top-12) all recompute from the same
-filter set. The server-side query inner-joins on `campaigns!inner` so
-any orphaned lead from a deleted campaign drops out automatically;
-`force-dynamic` means deletes and new runs reflect immediately, no
-stale cache.
-
-**(f) Templates — full CRUD with version history.** `/templates`
+**(e) Templates — full CRUD with version history.** `/templates`
 lists every prompt template (active and archived) with default and
 archived badges, the current version number, and a per-card action
 menu (Make default · Duplicate · Archive / Unarchive). `/templates/new`
@@ -112,7 +100,7 @@ bumping to a new version pointing at the restored content. Past
 campaigns keep their `system_prompt_snapshot` untouched — nothing
 historical ever changes.
 
-**(g) Leads — every qualified lead across all campaigns, in one
+**(f) Leads — every qualified lead across all campaigns, in one
 filterable, paginated table.** A cross-campaign browser that combines
 the lead rows from every campaign. Each row mirrors the campaign-detail
 table (Name + its source campaign as a subtitle, Role, Qualified, Temp,
@@ -124,15 +112,15 @@ CSV** or **copies their LinkedIn URLs** — and there's an "Export all
 priority, temperature, seniority (multi-selects), area + company +
 location (text contains — `product_area` is the per-lead company/team
 name, far too many distinct values for a dropdown), a free-text
-name/company/title search, and an All / Qualified toggle. Unlike Analytics, `/leads` filters **server-side
-and paginates** — the filter state lives in the URL (so an Analytics
-chart click can deep-link straight into a filtered view) and the full
-lead set never loads into the browser, so it stays fast as volume grows.
+name/company/title search, and an All / Qualified toggle. `/leads` filters **server-side
+and paginates** — the filter state lives in the URL (so a deep-link can
+land straight on a filtered view) and the full lead set never loads into
+the browser, so it stays fast as volume grows.
 
-**(h) Settings** — placeholder for future workspace-level config
+**(g) Settings** — placeholder for future workspace-level config
 (default Clay URL when M4 lands, etc.).
 
-**(i) Chat — LeadQuery agent.** `/chat` route with a multi-agent
+**(h) Chat — LeadQuery agent.** `/chat` route with a multi-agent
 registry; **LeadQuery** is the first agent (more drop in as config).
 Ask natural-language questions about your qualified leads ("How many
 decision-makers in May's Robotics campaign?", "Top 10 companies by
@@ -150,6 +138,22 @@ URLs as clickable links. Responses stream token-by-token (SSE).
 Conversation history persists in `chat_messages`. Semantic similarity
 (concept-match without shared keywords) is intentionally deferred to
 M-AG2.
+
+**(i) Opportunities — live signals worth acting on.** `/opportunities`
+gathers the *positive* signals from across the CRM into one card feed,
+newest-engagement-first. Two sources: **Smartlead conversations** where
+the prospect showed genuine interest (a reply classified meeting or
+interested — opens, clicks, sends, out-of-office and negative replies are
+all excluded, so only real two-way interaction shows), each with an
+on-demand LLM **conversation summary** + a one-line "where to pick it
+back up" signal; and **HubSpot pending deals** (open deals in a live
+pipeline) with stage, amount, owner, and company. Filter by source
+(conversations / deals / both), **time window — past 3 months, past 6
+months, or all** — and an interest sub-filter, plus free-text search. A
+card that maps to a qualified Lead-IQ lead is badged "In Lead-IQ"; cards
+deep-link to Smartlead, HubSpot (contact + deal), and LinkedIn. Like
+`/leads`, it filters server-side and paginates so it stays fast as the
+CRM grows.
 
 ---
 
@@ -222,19 +226,13 @@ M-AG2.
   failed, and qualified counts are computed live from the leads table
   per campaign — the campaigns list, campaign detail KPIs, and the
   detail-page polling all read from this view. Predicate is
-  `function_qualification IS NOT NULL AND upper(btrim(...)) <> 'NO'`,
-  same as analytics, so categorical verdicts and legacy YES count
-  uniformly without any backfill. `security_invoker = true` so RLS on
+  `function_qualification IS NOT NULL AND upper(btrim(...)) <> 'NO'`, so
+  categorical verdicts and legacy YES count uniformly without any
+  backfill. `security_invoker = true` so RLS on
   the underlying tables still applies. The `campaigns.qualified_count` /
   `failed_count` stored columns are no longer surfaced — the worker
   still writes them on completion, but every read goes through the
   view, so stale or never-set counters no longer mislead the UI.
-- **Filterable analytics.** Time range (7d / 30d / 90d / All), bucket
-  (day / week / month), and multi-select filters for campaign, business
-  unit, ICP, and company. The orphaned-lead defense via
-  `campaigns!inner` plus `force-dynamic` rendering means a deleted
-  campaign's leads can never reflect in the totals, even if FK cascade
-  ever fails.
 - **Prompt templates CRUD with version history.** Full self-serve
   template management — create, edit, duplicate, archive / unarchive,
   set default, restore from any prior version. Editing bumps `version`
@@ -248,9 +246,6 @@ M-AG2.
   layout with light tokens defined alongside the dark in `globals.css`;
   the toggle lives in the app header. Default is dark; the login screen
   stays dark-locked.
-- **Campaign analytics.** Qualification rates, seniority distribution,
-  per-product-area breakdowns — all pulling directly from Supabase
-  with no pre-aggregation job.
 - **LeadQuery agent — natural-language SQL over Lead-IQ + CRM data.**
   Three MCP-style tools (`execute_sql`, `list_tables`,
   `get_table_schema`) give the agent a small, predictable surface over
@@ -284,7 +279,6 @@ M-AG2.
 | Framework | **Next.js 16** (App Router, Turbopack) | One deploy artifact for UI + API, fast server components |
 | UI | **shadcn/ui on Base UI** + **Tailwind v4** | Own the components, headless primitives, no design-system lock-in |
 | Theme | Dark, pure black + **#6bb3ff** sky-blue radial gradient; **Major Mono Display** headings + **JetBrains Mono** body | Calm, identifiable, developer-adjacent feel |
-| Charts | **Recharts** via shadcn Chart | Declarative, themable via CSS vars |
 | Auth | **Supabase Auth — shared password** (single shared user) | 5-person team, OAuth / per-user auth would be overkill |
 | Database | **Supabase Postgres** with row-level security | Managed, auth-integrated, cheap |
 | LLM | **Groq** `openai/gpt-oss-120b` via the OpenAI SDK (BYOK) | 250k tokens/min, OpenAI-compatible API, open-weights |
@@ -406,6 +400,21 @@ Groq openai/gpt-oss-120b (JSON mode)
 ## 8. Current state
 
 **Shipped:**
+- **Opportunities surface (`/opportunities`, M-CX3)** — one card feed of the
+  live, positive signals a rep should act on, newest-engagement-first, from
+  **both** halves of the CRM: **Smartlead genuine-interest conversations**
+  (replies classified meeting/interested — opens/clicks/sends, OOO and negative
+  replies excluded) each with an on-demand LLM conversation summary, and
+  **HubSpot pending deals** (open deals in a live pipeline) with stage / amount
+  / owner / company. Sourced thread-side (Scope B) since the opportunities mostly
+  live in the conference-outreach population we haven't qualified yet; the few
+  that map to a qualified lead are badged "In Lead-IQ". Filters (source, time
+  window 3m/6m/all on last-engaged, interest, search) are URL-driven and
+  server-side paginated. Migration `0016_opportunities.sql` adds a shared
+  `crm.smartlead_reply_status` view (the reply-status logic, factored out of the
+  classifier so the two can't diverge — verified bit-identical), an email-keyed
+  `opportunity_summaries` cache, and the `list_opportunities` / `get_opportunity_thread`
+  RPCs; new route `POST /api/opportunities/summarize`.
 - **Dual-schema Phantombuster ingest** — the parser maps both PB export
   shapes onto the canonical 9 input columns: the Sales Nav Search Export
   (`defaultProfileUrl`/`fullName`/…) and the LinkedIn Profile Scraper
@@ -433,7 +442,7 @@ Groq openai/gpt-oss-120b (JSON mode)
   "Export all (filtered)". Filters: campaign, domain, ICP,
   priority, temperature, seniority (multi-select); area, company,
   location (contains); free-text search; All/Qualified toggle. Filters live in
-  the URL so `/analytics` bar charts deep-link in
+  the URL so a caller can deep-link straight into a filtered view
   (`/leads?bu=/icp=/company=/campaign=`). New `GET /api/leads/export.csv`
   + migration `0008_lead_filter_facets.sql` (a `lead_filter_facets()`
   SQL function powering the dropdowns without loading the full lead set).
@@ -489,10 +498,6 @@ Groq openai/gpt-oss-120b (JSON mode)
   unchanged. Per-lead temperature write-back (hot/warm/cold) remains a
   separate milestone (M-CX1).
 - Full campaign creation → run → export loop with rerun-failed support
-- **Filterable analytics dashboard** — time / bucket / campaign /
-  business unit / ICP / company filters, KPI cards, time-series area
-  chart, and four breakdown bar charts; `force-dynamic` rendering plus
-  `campaigns!inner` join means deleted campaigns can't show up in totals
 - **Live campaign counts via the `campaign_stats` SQL view** — the
   campaigns list, campaign detail, and detail polling all read live
   aggregates instead of the stored counters; categorical verdicts and
@@ -560,13 +565,8 @@ Groq openai/gpt-oss-120b (JSON mode)
 - Major Mono Display headings + JetBrains Mono body; ASCII hero login page; password-based shared auth
 
 **Not yet shipped (roadmap):**
-- **Opportunities surface (`/opportunities`)** *(proposed — M-CX3)* — a dedicated view of the live, positive Smartlead conversations (`reply_status` `meeting`/`interested`, plus HubSpot pipeline stages), reusing the reply-status classification (`0011`–`0014`) + the M-CX2 summaries, with the noise statuses (OOO / not-interested / do-not-contact / wrong-person / bounce) suppressed. Sourced from `crm.smartlead_reply_threads` (237 conversations / 13 campaigns today; ~34 are clear Meeting/Interested opportunities). Scope — tie to qualified leads (~8 bridge) vs all CRM conversations (richer) — TBD; see roadmap **M-CX3**.
 - **Semantic similarity in LeadQuery** *(M-AG2)* — pgvector + Supabase gte-small embeddings + a `semantic_search_leads` tool. Lets the agent answer concept-match questions ("find leads about AI infra even if their title says 'ML platform engineer'"). Design lives in [`agent-section-plan.md`](./agent-section-plan.md) §4 + §8 (tagged **[M-AG2 — DEFERRED]**).
 - **Clay webhook push** *(M4 — parked 2026-05-28)* — Smartlead/HubSpot via M-CX1 covers the outreach pattern from the enrichment angle; revisit Clay if a push-style gap remains after M-CX1 ships.
-- **Analytics scale fix** — today the page fetches every processed lead
-  across all campaigns and filters in-memory; will be visibly slow past
-  ~50k leads. Right fix: pre-aggregated SQL views or RPC with the
-  filter set passed as params. Defer until volume actually warrants.
 - **BI offload (Looker Studio / Metabase)** — deferred until Smartlead /
   HubSpot integrations land. Plan: SQL views per source, shaped like
   `campaign_stats`, then point a BI tool at those views for exec /

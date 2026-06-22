@@ -123,6 +123,6 @@ export async function deleteCampaign(
   if (error) throw new Error(error.message);
 
   revalidatePath("/campaigns");
-  revalidatePath("/analytics");
+  revalidatePath("/leads");
   if (opts?.redirectTo) redirect(opts.redirectTo);
 }

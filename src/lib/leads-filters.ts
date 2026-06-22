@@ -7,9 +7,8 @@
 
 export const LEADS_PAGE_SIZE = 50;
 
-// URL param keys. `bu`/`icp`/`company` mirror the names /analytics already uses
-// for its deep-links so an analytics chart can navigate straight to a filtered
-// /leads view.
+// URL param keys. `bu`/`icp`/`company` are the canonical filter names a caller
+// can deep-link into to land on a pre-filtered /leads view.
 export type LeadFilters = {
   campaign: string[]; // campaign_id (uuid)
   bu: string[]; // domain_classification

@@ -6,11 +6,11 @@ import { usePathname } from "next/navigation";
 import {
   LayoutDashboard,
   FileText,
-  BarChart3,
   Settings,
   Radar,
   MessageSquare,
   Users,
+  Target,
 } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { UserButton } from "@/components/user-button";
@@ -19,8 +19,8 @@ const nav = [
   { href: "/scrape", label: "Scrape", icon: Radar },
   { href: "/campaigns", label: "Campaigns", icon: LayoutDashboard },
   { href: "/leads", label: "Leads", icon: Users },
+  { href: "/opportunities", label: "Opportunities", icon: Target },
   { href: "/templates", label: "Prompt Templates", icon: FileText },
-  { href: "/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/chat", label: "Chat", icon: MessageSquare },
   { href: "/settings", label: "Settings", icon: Settings },
 ];

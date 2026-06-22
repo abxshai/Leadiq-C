@@ -6,7 +6,7 @@ short.
 
 Companion docs: [`DOCS.md`](./DOCS.md) (product + architecture), [`UI.md`](./UI.md) (design system: fonts, color tokens, component conventions, refresh candidates).
 
-*Last updated: 2026-06-13*
+*Last updated: 2026-06-22*
 
 ---
 
@@ -21,46 +21,6 @@ Companion docs: [`DOCS.md`](./DOCS.md) (product + architecture), [`UI.md`](./UI.
 ---
 
 ## Next up (active milestones)
-
-### M-CX3 — Opportunities surface (`/opportunities`)
-
-**Status:** proposed 2026-06-13 · **ready to build — handoff-prepped 2026-06-22.** All prerequisites are shipped (reply_status `0011`–`0014`, M-CX2 Summarize), so this is the next active build. See **Build handoff** at the end of this entry.
-
-**Why:** The reply-status work (`0011`–`0014`) already classifies every bridged Smartlead reply into `touchpoint_match.smartlead.reply_status` and gates the noise out of *hot*. That signal is exactly what an opportunities view needs — one place listing the **live, positive** conversations a rep should act on, instead of hunting for them lead-by-lead. M-CX2 already produces the per-conversation recap + "where to pick it back up" signal that becomes the opportunity body.
-
-**Present-day data (`crm.smartlead_reply_threads`, 2026-06-10):** **237 conversations / 13 campaigns** (icra_26 / CVPR / iclr26 dominate), every one with a real lead reply. By Smartlead category today: **27 Meeting Request + 7 Interested** (the opportunities) vs 15 OOO / 5 Not Interested / 2 Wrong Person / 2 Bounce / 1 Do Not Contact (noise — already classified + gated), plus 178 uncategorized that the reply-status heuristics + M-CX2's LLM `status` resolve.
-
-**To build:**
-- [ ] `/opportunities` route + sidebar entry surfacing conversations where `reply_status ∈ ('meeting','interested')` **or** a HubSpot pipeline stage (opportunity/customer/evangelist), newest-reply-first — with the `ReplyStatusChip`, person/company, campaign, last-reply date, and the M-CX2 **Summarize** recap inline.
-- [ ] Hard-suppress the noise statuses (ooo / not_interested / do_not_contact / wrong_person / bounce).
-- [ ] Deep-link to Smartlead + HubSpot (same as the touchpoint expand).
-
-**Scope (open):** **(A)** opportunities tied to qualified leads — clean pipeline tie-in but thin (~8 bridge via HubSpot, ~28 via the name-fallback already live in `get_lead_reply_threads`); **(B)** all CRM conversations — far more signal now (~34 clear), surfaced from the thread side, badging the ones that map to a qualified lead. **Lean B** — the opportunities mostly live in the conference population we haven't qualified through Lead-IQ yet.
-
-**Open questions:** (1) bridge width is the scope-A ceiling (leads carry no email); (2) "opportunity" source — Smartlead `reply_status` only, or also HubSpot lifecyclestage (deal-level is hard — `gtm_deal_data` has no contact key); (3) triage/dismiss state would need the first write table outside `leads`/`campaigns`.
-
-**Estimate:** ~4–6h for a read-only B-scope surface reusing `reply_status` + Summarize; +2h if triage state is wanted.
-
-**Build handoff (start here next session):**
-
-*First decision:* confirm **scope A vs B** (lean **B**). It determines the view shape below.
-
-*Reuse — already built, don't rebuild:*
-- `reply_status` lives in `touchpoint_match.smartlead.reply_status`, derived by `classify_campaign_temperature` (migrations `0011`–`0014`) from Smartlead `lead_category` + an OOO body-pattern + an instant-auto-reply heuristic (reply within 2 min of send = `ooo`). Values: `meeting` / `interested` / `not_interested` / `do_not_contact` / `wrong_person` / `bounce` / `ooo` / `replied`.
-- `ReplyStatusChip`, `TemperatureBadge`, and the types (`ReplyStatus`, `TouchpointMatch`, `TouchpointSummaryData`) in `src/components/leads/lead-display.tsx`.
-- `src/components/leads/touchpoint-summary.tsx` — the **Summarize** control (BYOK Groq); embed it inline per opportunity for the recap + actionable signal.
-- `get_lead_reply_threads(uuid)` RPC + `POST /api/leads/[id]/summarize-touchpoints` route — already power Summarize.
-- **Structural template = `/leads`, NOT `/analytics`.** Copy the scalable pattern from `src/app/(app)/leads/page.tsx` + `src/components/leads/leads-browser.tsx`: server-side filtered, URL-driven filters, paginated (`distinct_leads`-style). Do not fetch-all-and-filter-in-memory.
-- Sidebar entry: add `/opportunities` in `src/components/app-sidebar.tsx` (suggest a `Target` lucide icon, near `/leads`).
-
-*New data contract (proposed — migration `0016_opportunities_*.sql`; 0015 = campaign_stats temperature):*
-- A view/RPC returning one row per **opportunity conversation**: `person`, `email`, `campaign`, `last_reply_time`, `reply_status`, and a **nullable `lead_id`** (the matched qualified lead, for the badge + deep-link). Filter to `reply_status ∈ ('meeting','interested')` (+ optionally HubSpot lifecyclestage opportunity/customer/evangelist). Hard-exclude the noise statuses.
-- **Scope B** = derive straight from `crm.smartlead_reply_threads` (+ `gtm_contact_data` for the optional lead bridge); **Scope A** = inner-join through the bridge so only qualified-lead-linked conversations show.
-- **Watch out:** `reply_status` is currently computed *inside* `classify_campaign_temperature` and stored on `leads.touchpoint_match` — that only covers leads that bridged (~8). For **scope B you need the same derivation on the threads table directly.** Factor the reply-status logic into a reusable SQL expression/function (e.g. `crm`-side `reply_status_of(...)`) and have both the classifier and the opportunities view call it, so the two never diverge.
-
-*Carry-over caveats:* the `Thread Demo (delete me)` campaign (+6 dummy leads) is still in the DB — delete before/after; and `get_lead_reply_threads` diverges from committed `0009` (the demo name-fallback is live in the DB but not in the migration file).
-
----
 
 ### M-AG2 — Semantic similarity follow-up to M-AG1
 
@@ -142,6 +102,11 @@ On the radar, not committed. Promote when a real trigger appears.
 ---
 
 ## Shipped
+
+**2026-06-22**
+- [x] **Removed `/analytics`.** The dashboard was bloated and slow (fetch-every-lead-then-filter-in-memory, `force-dynamic`, Recharts) and `/leads` covers the operational need better. Deleted the route, `analytics-dashboard.tsx`, and the now-orphaned `src/components/ui/chart.tsx`; dropped the sidebar entry (`BarChart3`) and the `revalidatePath("/analytics")` in `deleteCampaign` (→ `/leads`). The `--chart-*` tokens + `recharts` dep are left in place (harmless, unused) for a future charts surface. Cross-source / exec reporting, if needed later, is the **BI offload** backlog item (SQL views → Metabase/Looker), not an in-app rebuild.
+- [x] **M-CX3 — `/opportunities` surface (Scope B + pending deals, card UI).** A dedicated view of the live, positive signals worth acting on, sourced from **both** halves of the CRM and rendered as **cards**, newest-engagement-first: **(1) Smartlead genuine-interest conversations** — replies classified `meeting`/`interested` (opens/clicks/sends, OOO and negative replies all excluded), with an on-demand LLM **conversation summary** + actionable signal; **(2) HubSpot pending deals** — open deals (neither closed-won nor closed-lost) in a live pipeline (defunct pipelines excluded), with stage / amount / owner / company. **Scope = B** (decided from data: of 35 genuine-interest conversations, **0 bridge to a qualified lead via HubSpot and only 3 via name-fallback** — Scope A would have rendered ~3 rows; the opportunities live in the conference-outreach population we haven't qualified through Lead-IQ). Conversations that **do** map to a qualified lead get an "In Lead-IQ" badge. **Filters (URL-driven, server-side, paginated):** source (All / Conversations / Deals), **time window (past 3 months / 6 months / all)** on last-engaged, interest sub-filter (Meeting / Interested), free-text search. **Last-engaged date** = last reply (conversations) or `hs_v2_date_entered_current_stage`/notes/createdate (deals — `hs_lastmodifieddate` is sync-polluted and deliberately not used). Deep-links to Smartlead campaign, HubSpot contact + deal (gated on `NEXT_PUBLIC_HUBSPOT_PORTAL_ID`), and LinkedIn. Migration **`0016_opportunities.sql`**: factors the reply-status derivation (previously inlined in `classify_campaign_temperature` `0011`–`0014`) into a shared **`crm.smartlead_reply_status`** view — verified **bit-identical** to the inline logic (0 mismatches) before re-pointing the classifier at it, so the two can never diverge — plus `public.opportunity_summaries` (email-keyed summary cache), `get_opportunity_thread(email)`, and `list_opportunities(...)` (SECURITY DEFINER, the filtered/paginated feed). New route `POST /api/opportunities/summarize` (BYOK Groq, email-keyed, mirrors the M-CX2 lead route). New page `src/app/(app)/opportunities/page.tsx` + `src/components/opportunities/*` (browser + card + summary control); sidebar entry (`Target` icon) between Leads and Prompt Templates. Present data: 35 conversations + 187 pending deals (107 in 6mo / 72 in 3mo). `next build` verified clean; migration applied via MCP. *(Pending commit + Railway deploy.)*
+  - *Carry-over:* the `Thread Demo (delete me)` campaign (+6 dummy leads) and the `get_lead_reply_threads` name-fallback divergence from committed `0009` are unchanged by this work. `0016`'s `list_opportunities` was revised after first apply to add `smartlead_campaign_id` — the live function matches the committed migration file; the recorded migration body is one revision behind (re-applying the file yields the correct state).
 
 **2026-06-13**
 - [x] **Temperature breakdown on the Campaigns list.** The campaign-detail lead table already shows per-lead temperature (M-CX1), but the Campaigns overview (`/campaigns`) only had Total/Qualified/Failed. It now also shows a per-campaign **hot·warm·cold** cluster (red/amber/muted, matching the badge palette) beside the other stats, so warmth is visible at a glance post-run without opening each campaign. Migration `0015_campaign_stats_temperature.sql` appends `hot_count`/`warm_count`/`cold_count` to the `campaign_stats` view (the list already reads that view, so no query change); the cluster renders only once cross-check has populated temps, else a muted "—". *(Built; migration applied via MCP; pending commit + deploy.)*

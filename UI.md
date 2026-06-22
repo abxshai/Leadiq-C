@@ -1,6 +1,6 @@
 # Lead-IQ — UI / design system
 
-*Last updated: 2026-06-13*
+*Last updated: 2026-06-22*
 
 This is the working inventory of every visual decision baked into the app — fonts, colors, components, and where each token surfaces. Use it to scope a refresh: every line below is something you can choose to keep or change.
 
@@ -25,7 +25,6 @@ For product / architecture context, see [`DOCS.md`](./DOCS.md). For shipped/queu
 | Styling | Tailwind v4 + `@tailwindcss/postcss` | CSS-variable-driven theming via `@theme inline`. | `src/app/globals.css`, `postcss.config.mjs` |
 | Tailwind extras | `tw-animate-css` | Enter/exit utilities (`animate-in`, `fade-in-0`, `zoom-in-95`). | Used in `dropdown-menu.tsx`, `dialog.tsx`. |
 | Theme switching | `next-themes` ^0.4 | `class` strategy on `<html>`. Default dark, no system preference (login stays dark-locked). | `theme-provider.tsx`, `theme-toggle.tsx` |
-| Charts | Recharts ^3.8 + shadcn `Chart` wrapper | Per-chart CSS vars (`--color-{key}`) so series colors track the theme. | `src/components/ui/chart.tsx`, `analytics-dashboard.tsx` |
 | Icons | `lucide-react` | Default size 16px via `[&_svg:not([class*='size-'])]:size-4`. | App-wide |
 | Toasts | `sonner` (next-themes aware) | Wired but not surfaced yet — toast notifications are a roadmap polish item. | `src/components/ui/sonner.tsx` |
 | Dropzone | `react-dropzone` | CSV/JSON upload in the campaign wizard + scrape page. | `run-wizard.tsx`, `scrape/page.tsx` |
@@ -86,6 +85,11 @@ Brand color is **#6bb3ff** sky-blue (OKLCH hue ~251), adopted 2026-06-06 (after 
 
 ### Charts
 
+> **Unused since 2026-06-22** — `/analytics` (the only charts surface) and its
+> Recharts wrapper (`src/components/ui/chart.tsx`) were removed; `/leads` replaced
+> it. The `--chart-*` tokens below are still declared in `globals.css` (kept for a
+> future charts surface) but nothing consumes them today.
+
 | Token | Light | Dark | Used for |
 |---|---|---|---|
 | `--chart-1` | `oklch(0.55 0.14 251)` | `oklch(0.751 0.132 251)` | Primary series (qualified leads, dominant bar fills). Tracks `--primary` (sky-blue). |
@@ -96,7 +100,7 @@ Brand color is **#6bb3ff** sky-blue (OKLCH hue ~251), adopted 2026-06-06 (after 
 | `--chart-axis` | `oklch(0.45 0.02 240)` | `oklch(0.68 0.02 240)` | Recharts axis tick/label stroke. |
 | `--chart-grid` | `oklch(0.18 0.02 240 / 0.08)` | `oklch(1 0 0 / 0.08)` | CartesianGrid line color. |
 
-shadcn's `ChartContainer` re-emits the per-key chart vars as `--color-{key}` so any chart series defined in a `ChartConfig` auto-themes.
+(When a charts surface returns, shadcn's `ChartContainer` re-emits the per-key chart vars as `--color-{key}` so any series defined in a `ChartConfig` auto-themes.)
 
 ### Sidebar
 
@@ -264,10 +268,22 @@ Added 2026-06-08 for the `/leads` row selection (the first checkbox in the app).
 ### Leads browser (`src/components/leads/leads-browser.tsx`)
 
 The `/leads` table reuses the campaign-detail row presentation via the shared `src/components/leads/lead-display.tsx` (badges, `FunctionVerdict`, `TemperatureBadge`, `DetailGrid`/`TouchpointHistory`, the `temperatureBadge`/action maps — all extracted there 2026-06-08 so both tables stay identical). New conventions:
-- **Filter bar** — same shell as analytics (`rounded-lg border border-border/60 bg-card/40 p-3`). Multi-selects reuse the shared `MultiSelect` (extracted to `src/components/ui/multi-select.tsx` alongside `PillGroup`/`Divider`). Text filters (`TextFilter`) are an inline `border-border/60 bg-background/40` pill with a leading `lucide` glyph (`Boxes` area / `Building2` company / `MapPin` location / `Search` free-text) and a trailing `X` clear; debounced 400 ms before writing to the URL. Area is a text filter (not a multi-select) because `product_area` is the per-lead company/team name — ~9.5k distinct values. The All/Qualified toggle is a `PillGroup`.
+- **Filter bar** — `rounded-lg border border-border/60 bg-card/40 p-3` shell. Multi-selects reuse the shared `MultiSelect` (extracted to `src/components/ui/multi-select.tsx` alongside `PillGroup`/`Divider`). Text filters (`TextFilter`) are an inline `border-border/60 bg-background/40` pill with a leading `lucide` glyph (`Boxes` area / `Building2` company / `MapPin` location / `Search` free-text) and a trailing `X` clear; debounced 400 ms before writing to the URL. Area is a text filter (not a multi-select) because `product_area` is the per-lead company/team name — ~9.5k distinct values. The All/Qualified toggle is a `PillGroup`.
 - **Selected-row tint** — `bg-primary/5` on the row.
 - **Selection action bar** — appears when ≥1 row selected: `sticky bottom-4 w-fit mx-auto rounded-full border border-border bg-popover/95 px-4 py-2 shadow-lg backdrop-blur`, with Export CSV (`text-primary`), Copy URLs (`lucide:Copy`, swaps to `lucide:Check text-emerald-400` for 1.5 s on copy), and Clear. Selection persists across pages (client `Map` keyed by lead id), so it survives pagination.
 - **Pagination** — centered Prev/Next `outline size-sm` buttons + "Page N of M" in `tabular-nums text-muted-foreground`; only rendered when >1 page.
+
+### Opportunities (cards) (`src/components/opportunities/*`, M-CX3, 2026-06-22)
+
+The `/opportunities` surface is a **card grid**, not a table — `grid gap-4 sm:grid-cols-2 xl:grid-cols-3`. Two card kinds from the `list_opportunities` RPC: a Smartlead **Conversation** and a HubSpot **Deal**.
+- **Card shell** — `rounded-lg border border-border bg-card/40 p-4 shadow-[var(--card-glow)]` (same glow token as `card.tsx`), a flex column with the footer pinned via `mt-auto`.
+- **Kind badge** — outline `Badge` with a leading glyph: Conversation = `lucide:Mail` on emerald (`border-emerald-500/40 bg-emerald-500/10 text-emerald-400`), Deal = `lucide:Briefcase` on brand (`border-primary/40 bg-primary/10 text-primary`). A deal also shows its `dealstage_label` as a muted outline badge; a conversation reuses the shared **`ReplyStatusChip`** (meeting/interested → emerald) from `lead-display.tsx`.
+- **Last-engaged** — top-right, `lucide:CalendarClock` + locale date in `text-[11px] text-muted-foreground tabular-nums`.
+- **Body** — title (`font-medium`: person name for conversations, deal name for deals) + a muted line with `lucide:Building2` company · subtitle (campaign for conversations, pipeline for deals). Deals add a facts row: amount via `Intl.NumberFormat` compact USD (`$3M`) `font-medium tabular-nums`, plus owner.
+- **Conversation summary** — the on-demand `OpportunitySummary` control (`src/components/opportunities/opportunity-summary.tsx`), an email-keyed twin of M-CX2's `TouchpointSummary`: `outline size-xs` "Summarize conversation" button (`lucide:Sparkles`, trailing `· {thread_count}`) → a `rounded-md border-border/60 bg-muted/30` card with a `Sparkles` "Conversation summary" label, the recap as plain `whitespace-pre-wrap` text (XSS-safe — untrusted email body), and the actionable signal as a `text-primary` `lucide:ArrowRightCircle` line. BYOK Groq via `useGroqStore`; POSTs to `/api/opportunities/summarize`.
+- **Footer links** — an "In Lead-IQ" badge (`lucide:BadgeCheck`, emerald, links to `/leads?q=…`) when the card maps to a qualified lead, then `lucide:ExternalLink` deep-links: Deal → HubSpot deal (`record/0-3/{id}`), Conversation → Smartlead campaign + HubSpot contact (`record/0-1/{id}`) + LinkedIn. HubSpot links gated on `NEXT_PUBLIC_HUBSPOT_PORTAL_ID`.
+- **Filter bar / pagination** — identical shell + `PillGroup`/`MultiSelect`/debounced `TextFilter` conventions as the leads browser; source + time-window (3m/6m/all) are `PillGroup`s, interest is a `MultiSelect`. No new tokens.
+- **Sidebar** — `/opportunities` entry with the `lucide:Target` icon, between Leads and Prompt Templates.
 
 ### Forms
 
@@ -301,7 +317,6 @@ Surrounding layout: `login/page.tsx` puts the headline column and the ASCII colu
 - `defaultTheme="dark"`, `enableSystem={false}`. The login screen renders before the theme provider mounts and stays dark-locked regardless.
 - The Sun/Moon toggle in the app header (`theme-toggle.tsx`) is the only entry point.
 - All color tokens swap via the class — no JS reads needed.
-- shadcn's chart wrapper emits CSS for both `[data-chart=...]` (light) and `.dark [data-chart=...]` (dark) so the theme split flows through to series colors.
 
 ---
 
@@ -319,7 +334,6 @@ Surrounding layout: `login/page.tsx` puts the headline column and the ASCII colu
 | Login page | `src/app/login/page.tsx` |
 | Login hero (ASCII + trickle) | `src/components/login-hero.tsx` |
 | Logo asset | `public/logowhite.png` |
-| Chart wrapper | `src/components/ui/chart.tsx` |
 | `--card-glow` consumer | `src/components/ui/card.tsx` |
 | Chat surface | `src/app/(app)/chat/page.tsx`, `src/components/chat/*.tsx` |
 | Leads browser | `src/app/(app)/leads/page.tsx`, `src/components/leads/leads-browser.tsx` |
@@ -352,7 +366,6 @@ Concrete candidates for the next visual pass — none of these are committed, al
 
 - ~~**Body face revisit.**~~ Done 2026-06-05 — Space Mono → JetBrains Mono everywhere (and VT323 dropped). See §3.
 - **Brand-blue hierarchy pass.** `#6bb3ff` is uniform across buttons, links, badges, qualified verdicts. In dark mode buttons are full-bright blue with dark text; a slightly deeper blue for solid buttons (keeping full #6bb3ff for chips/headings/accents) would add hierarchy if the bright buttons read too loud.
-- **Chart palette diversification.** `--chart-3` and `--chart-4` are similar muted blues; for multi-series breakdowns (per business unit, per company top-10) a more separated palette (purple / orange-warm / cyan-cold) reads cleaner. The shadcn chart system makes this a 5-line change in `globals.css`.
 - **Card translucency in dark mode.** `oklch(... / 0.6)` looks great over the gradient but washes out when cards stack inside each other. A solid `--card-solid` variant for nested cases would help.
 - **Status-badge consistency.** Campaign status uses semantic emerald/destructive/muted; lead status uses similar but not identical (e.g., `text-emerald-400` literal). Aligning to tokens (`text-success` / `text-destructive` / `text-muted-foreground`) would make future palette swaps painless.
 - **Sidebar density.** The brand block + nav links + theme/connect pills all live above the fold but the spacing reads loose at `w-56`. Either tightening to `w-52` or formalizing a denser type scale for sidebar text.
