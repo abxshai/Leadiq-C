@@ -24,7 +24,7 @@ Companion docs: [`DOCS.md`](./DOCS.md) (product + architecture), [`UI.md`](./UI.
 
 ### M-CX3 — Opportunities surface (`/opportunities`)
 
-**Status:** proposed 2026-06-13. Greenfield page, but it reuses existing infra — nothing new in the data layer.
+**Status:** proposed 2026-06-13 · **ready to build — handoff-prepped 2026-06-22.** All prerequisites are shipped (reply_status `0011`–`0014`, M-CX2 Summarize), so this is the next active build. See **Build handoff** at the end of this entry.
 
 **Why:** The reply-status work (`0011`–`0014`) already classifies every bridged Smartlead reply into `touchpoint_match.smartlead.reply_status` and gates the noise out of *hot*. That signal is exactly what an opportunities view needs — one place listing the **live, positive** conversations a rep should act on, instead of hunting for them lead-by-lead. M-CX2 already produces the per-conversation recap + "where to pick it back up" signal that becomes the opportunity body.
 
@@ -40,6 +40,25 @@ Companion docs: [`DOCS.md`](./DOCS.md) (product + architecture), [`UI.md`](./UI.
 **Open questions:** (1) bridge width is the scope-A ceiling (leads carry no email); (2) "opportunity" source — Smartlead `reply_status` only, or also HubSpot lifecyclestage (deal-level is hard — `gtm_deal_data` has no contact key); (3) triage/dismiss state would need the first write table outside `leads`/`campaigns`.
 
 **Estimate:** ~4–6h for a read-only B-scope surface reusing `reply_status` + Summarize; +2h if triage state is wanted.
+
+**Build handoff (start here next session):**
+
+*First decision:* confirm **scope A vs B** (lean **B**). It determines the view shape below.
+
+*Reuse — already built, don't rebuild:*
+- `reply_status` lives in `touchpoint_match.smartlead.reply_status`, derived by `classify_campaign_temperature` (migrations `0011`–`0014`) from Smartlead `lead_category` + an OOO body-pattern + an instant-auto-reply heuristic (reply within 2 min of send = `ooo`). Values: `meeting` / `interested` / `not_interested` / `do_not_contact` / `wrong_person` / `bounce` / `ooo` / `replied`.
+- `ReplyStatusChip`, `TemperatureBadge`, and the types (`ReplyStatus`, `TouchpointMatch`, `TouchpointSummaryData`) in `src/components/leads/lead-display.tsx`.
+- `src/components/leads/touchpoint-summary.tsx` — the **Summarize** control (BYOK Groq); embed it inline per opportunity for the recap + actionable signal.
+- `get_lead_reply_threads(uuid)` RPC + `POST /api/leads/[id]/summarize-touchpoints` route — already power Summarize.
+- **Structural template = `/leads`, NOT `/analytics`.** Copy the scalable pattern from `src/app/(app)/leads/page.tsx` + `src/components/leads/leads-browser.tsx`: server-side filtered, URL-driven filters, paginated (`distinct_leads`-style). Do not fetch-all-and-filter-in-memory.
+- Sidebar entry: add `/opportunities` in `src/components/app-sidebar.tsx` (suggest a `Target` lucide icon, near `/leads`).
+
+*New data contract (proposed — migration `0016_opportunities_*.sql`; 0015 = campaign_stats temperature):*
+- A view/RPC returning one row per **opportunity conversation**: `person`, `email`, `campaign`, `last_reply_time`, `reply_status`, and a **nullable `lead_id`** (the matched qualified lead, for the badge + deep-link). Filter to `reply_status ∈ ('meeting','interested')` (+ optionally HubSpot lifecyclestage opportunity/customer/evangelist). Hard-exclude the noise statuses.
+- **Scope B** = derive straight from `crm.smartlead_reply_threads` (+ `gtm_contact_data` for the optional lead bridge); **Scope A** = inner-join through the bridge so only qualified-lead-linked conversations show.
+- **Watch out:** `reply_status` is currently computed *inside* `classify_campaign_temperature` and stored on `leads.touchpoint_match` — that only covers leads that bridged (~8). For **scope B you need the same derivation on the threads table directly.** Factor the reply-status logic into a reusable SQL expression/function (e.g. `crm`-side `reply_status_of(...)`) and have both the classifier and the opportunities view call it, so the two never diverge.
+
+*Carry-over caveats:* the `Thread Demo (delete me)` campaign (+6 dummy leads) is still in the DB — delete before/after; and `get_lead_reply_threads` diverges from committed `0009` (the demo name-fallback is live in the DB but not in the migration file).
 
 ---
 
