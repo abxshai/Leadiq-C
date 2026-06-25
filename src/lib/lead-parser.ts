@@ -114,23 +114,76 @@ function str(v: unknown): string | null {
   return s.length > 0 ? s : null;
 }
 
-export function rowToLead(row: Record<string, unknown>): ParsedLead {
-  const lead: ParsedLead = {
-    default_profile_url: null,
-    full_name: null,
-    first_name: null,
-    last_name: null,
-    company_name: null,
-    title: null,
-    summary: null,
-    title_description: null,
-    location: null,
-  };
-  for (const [k, v] of Object.entries(row)) {
-    const col = canonical(k);
-    if (!col) continue;
-    if (lead[col] === null) lead[col] = str(v);
+// A LinkedIn *profile* URL (linkedin.com/in/…) vs a Sales Navigator lead URL
+// (linkedin.com/sales/lead/… or /sales/people/…). The Sales Nav Search Export
+// carries BOTH — `defaultProfileUrl` is the canonical /in/ link, `profileUrl`
+// is the Sales Nav link.
+function isProfileUrl(u: string): boolean {
+  return /linkedin\.com\/in\//i.test(u);
+}
+function isSalesNavUrl(u: string): boolean {
+  return /linkedin\.com\/sales\//i.test(u) || /\/sales\/(lead|people)\//i.test(u);
+}
+
+// All non-empty values across a canonical column's aliases, in ALIAS_GROUPS
+// order, looked up from a header-canonicalized row.
+function aliasValues(
+  byKey: Record<string, unknown>,
+  aliases: string[]
+): string[] {
+  const out: string[] = [];
+  for (const a of aliases) {
+    const camel = a.toLowerCase().replace(/\s+/g, "");
+    const snake = a.replace(/([a-z])([A-Z])/g, "$1_$2").toLowerCase();
+    const s = str(byKey[camel] ?? byKey[snake]);
+    if (s !== null) out.push(s);
   }
+  return out;
+}
+
+// First aliased value, by ALIAS_GROUPS precedence (NOT source column order) —
+// so e.g. `summary` (OLD) wins over `linkedinHeadline` (NEW fallback) whenever
+// both are present, deterministically.
+function pickByAlias(
+  byKey: Record<string, unknown>,
+  aliases: string[]
+): string | null {
+  return aliasValues(byKey, aliases)[0] ?? null;
+}
+
+// Choose the lead's LinkedIn *profile* URL. A Sales Nav export lists
+// `profileUrl` (a /sales/lead/ link) before `defaultProfileUrl` (the /in/
+// link) and both alias to default_profile_url — so row order must NOT decide.
+// Prefer a real /in/ profile URL and refuse to store a Sales Navigator link:
+// only the canonical profile URL should ever reach a campaign.
+function pickProfileUrl(byKey: Record<string, unknown>): string | null {
+  const candidates = aliasValues(byKey, ALIAS_GROUPS.default_profile_url);
+  if (candidates.length === 0) return null;
+  const profile = candidates.find(isProfileUrl);
+  if (profile) return profile;
+  // No /in/ URL present — take any non-Sales-Nav candidate, else null (never
+  // push a /sales/ link downstream).
+  return candidates.find((u) => !isSalesNavUrl(u)) ?? null;
+}
+
+export function rowToLead(row: Record<string, unknown>): ParsedLead {
+  // Canonicalize the row's headers once (lowercased, whitespace-stripped) so
+  // lookups are order- and casing-independent.
+  const byKey: Record<string, unknown> = {};
+  for (const [k, v] of Object.entries(row)) {
+    byKey[k.trim().toLowerCase().replace(/\s+/g, "")] = v;
+  }
+  const lead: ParsedLead = {
+    default_profile_url: pickProfileUrl(byKey),
+    full_name: pickByAlias(byKey, ALIAS_GROUPS.full_name),
+    first_name: pickByAlias(byKey, ALIAS_GROUPS.first_name),
+    last_name: pickByAlias(byKey, ALIAS_GROUPS.last_name),
+    company_name: pickByAlias(byKey, ALIAS_GROUPS.company_name),
+    title: pickByAlias(byKey, ALIAS_GROUPS.title),
+    summary: pickByAlias(byKey, ALIAS_GROUPS.summary),
+    title_description: pickByAlias(byKey, ALIAS_GROUPS.title_description),
+    location: pickByAlias(byKey, ALIAS_GROUPS.location),
+  };
   // The profile-scraper export has no fullName column — synthesize it from
   // first + last so the row survives the URL-or-name filter and the preview
   // shows a name. The Sales Nav export already provides full_name, so this
