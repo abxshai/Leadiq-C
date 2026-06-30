@@ -11,17 +11,20 @@ export default async function AppLayout({
   children: React.ReactNode;
 }) {
   const supabase = await createServerSupabase();
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // getClaims() verifies the JWT locally (no Auth-server round-trip) — see
+  // proxy.ts. The middleware already gated this route, so this is just to read
+  // the email for the sidebar without a second network call that would block
+  // the layout (and defeat loading.tsx streaming).
+  const { data } = await supabase.auth.getClaims();
+  const claims = data?.claims;
 
-  if (!user) {
+  if (!claims) {
     redirect("/login");
   }
 
   return (
     <div className="flex min-h-dvh">
-      <AppSidebar email={user.email ?? ""} />
+      <AppSidebar email={typeof claims.email === "string" ? claims.email : ""} />
       <div className="flex flex-1 flex-col">
         <header className="flex h-14 items-center justify-between border-b border-border/60 bg-background/40 px-6 backdrop-blur-xl">
           <div className="text-sm text-muted-foreground">

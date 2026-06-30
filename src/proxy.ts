@@ -25,10 +25,15 @@ export async function proxy(request: NextRequest) {
     }
   );
 
-  // Refresh the session cookie if expiring.
-  const {
-    data: { user },
-  } = await supabase.auth.getUser();
+  // Verify the session and refresh the cookie if expiring. getClaims() verifies
+  // the JWT *locally* against the project's asymmetric signing keys — no network
+  // round-trip to the Auth server on every request the way getUser() does (the
+  // dominant per-navigation cost). It still reads/refreshes the session cookie,
+  // so token refresh is preserved. Requires asymmetric JWT signing keys enabled
+  // in Supabase (Dashboard → Authentication → JWT Keys); with a symmetric secret
+  // it transparently falls back to a server request.
+  const { data } = await supabase.auth.getClaims();
+  const user = data?.claims ?? null;
 
   const { pathname } = request.nextUrl;
   const isPublic = PUBLIC_PATHS.some(
