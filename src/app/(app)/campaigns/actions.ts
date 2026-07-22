@@ -122,6 +122,15 @@ export async function deleteCampaign(
   const { error } = await supabase.from("campaigns").delete().eq("id", id);
   if (error) throw new Error(error.message);
 
+  // The deleted campaign's leads must drop out of the /leads deduped snapshot
+  // (public.distinct_leads materialized view, migration 0017) — otherwise they
+  // linger until the next refresh. Awaited (not soft) so /leads is correct on
+  // the redirect; the FK cascade already removed the underlying rows.
+  const { error: refreshErr } = await supabase.rpc("refresh_distinct_leads");
+  if (refreshErr) {
+    console.error("[deleteCampaign] refresh_distinct_leads failed:", refreshErr.message);
+  }
+
   revalidatePath("/campaigns");
   revalidatePath("/leads");
   if (opts?.redirectTo) redirect(opts.redirectTo);

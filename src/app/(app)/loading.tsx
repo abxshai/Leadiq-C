@@ -5,7 +5,7 @@ import { Skeleton } from "@/components/ui/skeleton";
 // skeleton streams in while the page's server data (force-dynamic DB queries)
 // loads — so navigation paints at once instead of blocking on a blank screen.
 // Generic on purpose: a page title + toolbar + content rows that read sensibly
-// for the table/card pages (campaigns, leads, opportunities, templates).
+// for the table pages (campaigns, leads, templates).
 export default function Loading() {
   return (
     <div>

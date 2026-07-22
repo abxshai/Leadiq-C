@@ -32,8 +32,6 @@ import {
   type Lead,
   DetailGrid,
   FunctionVerdict,
-  TemperatureBadge,
-  ThreadMarker,
   hasLeadDetail,
 } from "@/components/leads/lead-display";
 import {
@@ -57,7 +55,7 @@ type Facets = {
 
 // Number of leading non-data columns spanned by the inline-expand row
 // (checkbox cell stays empty, the rest is one wide cell).
-const EXPAND_COLSPAN = 12;
+const EXPAND_COLSPAN = 11;
 
 export function LeadsBrowser({
   leads,
@@ -248,16 +246,6 @@ export function LeadsBrowser({
             onChange={(s) => setMulti("priority", s)}
           />
           <MultiSelect
-            label="Temperature"
-            options={[
-              { value: "hot", label: "Hot" },
-              { value: "warm", label: "Warm" },
-              { value: "cold", label: "Cold" },
-            ]}
-            selected={new Set(filters.temp)}
-            onChange={(s) => setMulti("temp", s)}
-          />
-          <MultiSelect
             label="Seniority"
             options={["1", "2", "3", "4", "5"].map((v) => ({
               value: v,
@@ -352,7 +340,6 @@ export function LeadsBrowser({
               <TableHead className="w-[16%]">Lead</TableHead>
               <TableHead>Role</TableHead>
               <TableHead>Qualified</TableHead>
-              <TableHead>Temp</TableHead>
               <TableHead>ICP</TableHead>
               <TableHead>Seniority</TableHead>
               <TableHead>Domain</TableHead>
@@ -422,12 +409,6 @@ export function LeadsBrowser({
                     </TableCell>
                     <TableCell>
                       <FunctionVerdict value={l.function_qualification} />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1.5">
-                        <TemperatureBadge value={l.temperature} />
-                        <ThreadMarker lead={l} />
-                      </div>
                     </TableCell>
                     <TableCell className="truncate max-w-[140px]">
                       {l.icp_qualification ?? (

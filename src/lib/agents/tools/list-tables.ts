@@ -8,7 +8,7 @@ const schema = z.object({});
 export const listTablesTool: Tool<typeof schema> = {
   name: "list_tables",
   description:
-    "List all tables and views in the public and crm schemas with approximate row counts. Each row includes its schema; qualify crm tables as crm.<table> in queries. Useful for discovering what's queryable.",
+    "List all tables and views in the public schema with approximate row counts. Useful for discovering what's queryable.",
   schema,
   async handler() {
     const sql = getPgPool();

@@ -271,17 +271,6 @@ async function execute({
       return;
     }
 
-    // Cross-check qualified leads against the HubSpot/Smartlead `crm` schema
-    // and tag each hot/warm/cold (M-CX1). Pure local JOIN inside Postgres via
-    // the classifier function — runs once per campaign here. Done BEFORE the
-    // flip to `completed` on purpose: the campaign-detail page stops polling
-    // the moment it sees `completed`, so writing temperatures first means they
-    // are present on the very refresh that observes the finish — no reload, no
-    // race. SOFT-FAIL by design: temperature is enrichment, never a gate, so a
-    // CRM-side problem must never turn a successfully-qualified campaign into a
-    // failure (on error we just proceed to `completed` with blank temps).
-    await classifyTemperatureSoft(supabase, campaignId);
-
     await supabase
       .from("campaigns")
       .update({
@@ -291,6 +280,12 @@ async function execute({
         failed_count: failed,
       })
       .eq("id", campaignId);
+
+    // Refresh the /leads deduped snapshot now that this run's leads are
+    // processed + classified. SOFT-FAIL: a stale snapshot must never turn a
+    // successful run into a failure. Awaited so the snapshot is fresh by the
+    // time anyone navigates to /leads.
+    await refreshDistinctLeadsSoft(supabase);
   } catch (err) {
     await markFailed(
       supabase,
@@ -466,33 +461,22 @@ function tryParseAndValidate(
 }
 
 /**
- * Fire the campaign-level temperature cross-check (M-CX1). Soft-fail: any
- * error is logged and swallowed so a flaky `crm` schema / RPC can never
- * cascade into the campaign being marked failed. The campaign is already
- * `completed` by the time this runs.
+ * Refresh the /leads deduped snapshot (public.distinct_leads materialized view,
+ * migration 0017). SOFT-FAIL by design: a snapshot-refresh problem is
+ * enrichment plumbing and must never cascade into a campaign being marked
+ * failed. Concurrent refresh, so /leads reads are never blocked while it runs.
  */
-async function classifyTemperatureSoft(
-  supabase: ReturnType<typeof createServiceSupabase>,
-  campaignId: string
+async function refreshDistinctLeadsSoft(
+  supabase: ReturnType<typeof createServiceSupabase>
 ) {
   try {
-    const { data, error } = await supabase.rpc(
-      "classify_campaign_temperature",
-      { p_campaign_id: campaignId }
-    );
+    const { error } = await supabase.rpc("refresh_distinct_leads");
     if (error) {
-      console.error(
-        `[worker] temperature cross-check for ${campaignId} failed:`,
-        error.message
-      );
-      return;
+      console.error("[worker] refresh_distinct_leads failed:", error.message);
     }
-    console.log(
-      `[worker] temperature cross-check ${campaignId}: ${data ?? 0} leads classified`
-    );
   } catch (err) {
     console.error(
-      `[worker] temperature cross-check for ${campaignId} threw:`,
+      "[worker] refresh_distinct_leads threw:",
       err instanceof Error ? err.message : err
     );
   }

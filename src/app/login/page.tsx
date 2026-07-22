@@ -1,11 +1,9 @@
 "use client";
 
-import Image from "next/image";
 import { useState } from "react";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { LoginHero } from "@/components/login-hero";
 import { createBrowserSupabase } from "@/lib/supabase/browser";
 
 // Every teammate signs in as the same Supabase user. The "email" here
@@ -49,35 +47,20 @@ export default function LoginPage() {
 
   return (
     <div className="flex min-h-dvh items-center justify-center px-6 py-12">
-      <div className="w-full max-w-6xl">
-        {/* Hero row: title left, ASCII right */}
-        <div className="grid gap-10 sm:gap-32 sm:grid-cols-[1fr_1.5fr] items-center mb-10">
-          <div className="space-y-3">
-            <h1 className="relative inline-block font-display text-4xl sm:text-5xl lowercase tracking-wide leading-none [-webkit-text-stroke:0.7px_currentColor]">
-              lead-
-              <span className="text-primary">IQ</span>
-              {/* Deccan logo at the top-left corner of the wordmark. */}
-              <Image
-                src="/logowhite.png"
-                alt="Lead-IQ"
-                width={220}
-                height={68}
-                priority
-                className="pointer-events-none absolute bottom-full left-0 mb-1 h-5 w-auto object-contain"
-              />
-            </h1>
-            <p className="text-sm text-muted-foreground max-w-sm">
-              Qualify LinkedIn leads against your ICP with Groq&apos;s
-              gpt-oss-120b. Bring your own key.
-            </p>
-          </div>
-          <div className="flex justify-end overflow-hidden">
-            <LoginHero />
-          </div>
+      <div className="w-full max-w-md">
+        <div className="mb-8 space-y-3">
+          <h1 className="font-display text-4xl sm:text-5xl lowercase tracking-wide leading-none [-webkit-text-stroke:0.7px_currentColor]">
+            lead-
+            <span className="text-primary">IQ</span>
+          </h1>
+          <p className="text-sm text-muted-foreground max-w-sm">
+            Qualify LinkedIn leads against your ICP with Groq&apos;s
+            gpt-oss-120b. Bring your own key.
+          </p>
         </div>
 
         {/* Password-only sign-in */}
-        <div className="max-w-md">
+        <div>
           <div className="rounded-xl border border-border bg-card/60 p-8 backdrop-blur-xl">
             <h2 className="text-xl font-semibold">Enter password</h2>
             <p className="mt-1 text-sm text-muted-foreground">

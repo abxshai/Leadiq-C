@@ -3,9 +3,7 @@ import { z } from "zod";
 import { getPgPool, QUERYABLE_SCHEMAS } from "@/lib/agents/pg-pool";
 import type { Tool } from "./types";
 
-// public first so unqualified names (leads, campaigns) keep resolving to the
-// app's own tables; crm second for the ingest tables. Schema-qualified names
-// (crm.gtm_contact_data) work regardless of search_path.
+// Unqualified names (leads, campaigns, …) resolve against the public schema.
 const SEARCH_PATH = QUERYABLE_SCHEMAS.join(", ");
 
 const MAX_ROWS = 50;
@@ -29,9 +27,8 @@ const schema = z.object({
 export const executeSqlTool: Tool<typeof schema> = {
   name: "execute_sql",
   description: [
-    "Run a read-only SQL query against the Lead-IQ Postgres database.",
-    "Covers the public schema (campaigns, leads, …) and the crm schema (HubSpot/Smartlead ingest: gtm_company_data, gtm_contact_data, gtm_deal_data, smartlead_email_stats).",
-    "search_path is public,crm — qualify crm tables as crm.<table> to avoid ambiguity.",
+    "Run a read-only SQL query against the Postgres database.",
+    "Covers the public schema (campaigns, leads, campaign_stats, prompt_templates, …).",
     "Allowed: SELECT, EXPLAIN, WITH ... SELECT.",
     "Forbidden: INSERT, UPDATE, DELETE, DROP, ALTER, or any other write/DDL.",
     `Result is capped at ${MAX_ROWS} rows; statement timeout is ${

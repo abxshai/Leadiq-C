@@ -14,7 +14,6 @@ export type LeadFilters = {
   bu: string[]; // domain_classification
   icp: string[]; // icp_qualification
   priority: string[]; // priority_level
-  temp: string[]; // temperature: hot|warm|cold
   sen: string[]; // seniority_scoring: 1..5 (as strings)
   area: string; // product_area — text contains (ilike); ~9.5k distinct values
   company: string; // company_name — text contains (ilike)
@@ -29,7 +28,6 @@ const EMPTY: LeadFilters = {
   bu: [],
   icp: [],
   priority: [],
-  temp: [],
   sen: [],
   area: "",
   company: "",
@@ -60,9 +58,6 @@ function parse(getAll: Getter): LeadFilters {
     bu: multi(getAll, "bu"),
     icp: multi(getAll, "icp"),
     priority: multi(getAll, "priority"),
-    temp: multi(getAll, "temp").filter((t) =>
-      ["hot", "warm", "cold"].includes(t)
-    ),
     sen: multi(getAll, "sen").filter((s) => /^[1-5]$/.test(s)),
     area: single(getAll, "area"),
     company: single(getAll, "company"),
@@ -121,7 +116,6 @@ export function applyLeadFilters<Q>(query: Q, f: LeadFilters): Q {
   if (f.bu.length) q = q.in("domain_classification", f.bu);
   if (f.icp.length) q = q.in("icp_qualification", f.icp);
   if (f.priority.length) q = q.in("priority_level", f.priority);
-  if (f.temp.length) q = q.in("temperature", f.temp);
   if (f.sen.length) q = q.in("seniority_scoring", f.sen.map(Number));
 
   const area = sanitize(f.area);
@@ -155,7 +149,6 @@ export function hasActiveFilters(f: LeadFilters): boolean {
     f.bu.length > 0 ||
     f.icp.length > 0 ||
     f.priority.length > 0 ||
-    f.temp.length > 0 ||
     f.sen.length > 0 ||
     f.area !== "" ||
     f.company !== "" ||

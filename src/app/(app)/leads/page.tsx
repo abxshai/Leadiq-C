@@ -51,12 +51,14 @@ export default async function LeadsPage({
   const campaigns = (campaignsRes.data as { id: string; name: string }[]) ?? [];
 
   // /leads dedupes on the LinkedIn profile URL (the UID) via the distinct_leads
-  // view (migration 0010): one row per person across all campaigns, keyed on
-  // the normalized URL, keeping their most recently processed row. The view's
-  // inner join to campaigns also drops orphaned leads and exposes the campaign
-  // name as a flat `campaign_name` column — we reshape it back into the
-  // { campaigns: { id, name } } shape the row component expects. count: 'exact'
-  // drives pagination (now over the deduped set).
+  // MATERIALIZED view (migrations 0010 + 0017): one row per person across all
+  // campaigns, keyed on the normalized URL, keeping their most recently
+  // processed row. The view's inner join to campaigns also drops orphaned leads
+  // and exposes the campaign name as a flat `campaign_name` column — we reshape
+  // it back into the { campaigns: { id, name } } shape the row component
+  // expects. count: 'exact' drives pagination — cheap now that the dedup is
+  // materialized (0017): it no longer re-sorts every lead per load, so an exact
+  // count over the ~41k-row snapshot is a fast scan, not a disk-spilling sort.
   const cols = `${LEAD_COLS}, location, campaign_id, campaign_name`;
   const from = (filters.page - 1) * LEADS_PAGE_SIZE;
 
@@ -83,7 +85,7 @@ export default async function LeadsPage({
     <div>
       <PageHeader
         title="Leads"
-        description="Every qualified lead across all campaigns in one view. Filter by campaign, domain, ICP, area, priority, seniority, temperature, company, or location — then select rows to export or copy LinkedIn URLs."
+        description="Every qualified lead across all campaigns in one view. Filter by campaign, domain, ICP, area, priority, seniority, company, or location — then select rows to export or copy LinkedIn URLs."
       />
 
       {error ? (

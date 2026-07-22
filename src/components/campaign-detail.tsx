@@ -10,8 +10,6 @@ import {
   CircleAlert,
   ChevronRight,
   ChevronDown,
-  Thermometer,
-  RefreshCw,
 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -38,13 +36,10 @@ import { useGroqStore } from "@/lib/groq-store";
 import { cn } from "@/lib/utils";
 import {
   type Lead,
-  type Temperature,
   LEAD_COLS,
   DetailGrid,
   FunctionVerdict,
   LeadStatus,
-  TemperatureBadge,
-  ThreadMarker,
   hasLeadDetail,
 } from "@/components/leads/lead-display";
 
@@ -95,8 +90,6 @@ export function CampaignDetail({
   const [dialogOpen, setDialogOpen] = useState(false);
   const [runError, setRunError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
-  const [crossChecking, setCrossChecking] = useState(false);
-  const [tempFilter, setTempFilter] = useState<Temperature | "all">("all");
   const apiKey = useGroqStore((s) => s.apiKey);
 
   function toggleExpand(id: string) {
@@ -188,51 +181,10 @@ export function CampaignDetail({
     }
   }
 
-  async function onCrossCheck() {
-    setCrossChecking(true);
-    setRunError(null);
-    try {
-      const res = await fetch(`/api/campaigns/${campaign.id}/cross-check`, {
-        method: "POST",
-      });
-      const body = await res.json().catch(() => ({}));
-      if (!res.ok) {
-        setRunError(body.error ?? `Server responded ${res.status}`);
-        return;
-      }
-      await refresh();
-    } catch (err) {
-      setRunError(err instanceof Error ? err.message : "Network error");
-    } finally {
-      setCrossChecking(false);
-    }
-  }
-
   const canStart =
     campaign.status === "pending" ||
     campaign.status === "failed" ||
     campaign.status === "canceled";
-
-  // Temperature is only meaningful for qualified leads that have been
-  // cross-checked. Show the cross-check button once the run has produced
-  // leads (i.e. not while pending/empty).
-  const crossCheckable =
-    campaign.status === "completed" || stats.touched_count > 0;
-
-  const tempCounts = leads.reduce(
-    (acc, l) => {
-      if (l.temperature) acc[l.temperature] += 1;
-      return acc;
-    },
-    { hot: 0, warm: 0, cold: 0 } as Record<Temperature, number>
-  );
-  const anyTemperature =
-    tempCounts.hot + tempCounts.warm + tempCounts.cold > 0;
-
-  const visibleLeads =
-    tempFilter === "all"
-      ? leads
-      : leads.filter((l) => l.temperature === tempFilter);
 
   return (
     <div className="space-y-6">
@@ -256,22 +208,6 @@ export function CampaignDetail({
         </div>
 
         <div className="flex items-center gap-2">
-          {crossCheckable ? (
-            <Button
-              variant="outline"
-              onClick={onCrossCheck}
-              disabled={crossChecking}
-              className="gap-2"
-              title="Cross-check qualified leads against HubSpot + Smartlead and tag hot / warm / cold"
-            >
-              {crossChecking ? (
-                <Loader2 className="h-4 w-4 animate-spin" />
-              ) : (
-                <RefreshCw className="h-4 w-4" />
-              )}
-              {anyTemperature ? "Re-cross-check" : "Cross-check leads"}
-            </Button>
-          ) : null}
           <DropdownMenu>
             <DropdownMenuTrigger
               className="inline-flex items-center gap-2 rounded-lg border border-border bg-background px-3 py-2 text-sm hover:bg-muted transition-colors"
@@ -385,33 +321,6 @@ export function CampaignDetail({
         </div>
       ) : null}
 
-      {anyTemperature ? (
-        <div className="flex items-center gap-2 text-xs">
-          <Thermometer className="h-3.5 w-3.5 text-muted-foreground" />
-          {(["all", "hot", "warm", "cold"] as const).map((t) => {
-            const active = tempFilter === t;
-            const count =
-              t === "all"
-                ? tempCounts.hot + tempCounts.warm + tempCounts.cold
-                : tempCounts[t];
-            return (
-              <button
-                key={t}
-                onClick={() => setTempFilter(t)}
-                className={cn(
-                  "rounded-full border px-2.5 py-1 capitalize transition-colors",
-                  active
-                    ? "border-primary/40 bg-primary/10 text-primary"
-                    : "border-border text-muted-foreground hover:bg-muted"
-                )}
-              >
-                {t} {t === "all" ? "" : `(${count})`}
-              </button>
-            );
-          })}
-        </div>
-      ) : null}
-
       <div className="rounded-lg border border-border bg-card/30 overflow-hidden">
         <Table>
           <TableHeader>
@@ -421,7 +330,6 @@ export function CampaignDetail({
               <TableHead>Role</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Qualified</TableHead>
-              <TableHead>Temp</TableHead>
               <TableHead>ICP</TableHead>
               <TableHead>Seniority</TableHead>
               <TableHead>Domain</TableHead>
@@ -431,7 +339,7 @@ export function CampaignDetail({
             </TableRow>
           </TableHeader>
           <TableBody>
-            {visibleLeads.map((l) => {
+            {leads.map((l) => {
               const isOpen = expanded.has(l.id);
               const hasDetail = hasLeadDetail(l);
               return (
@@ -463,12 +371,6 @@ export function CampaignDetail({
                     </TableCell>
                     <TableCell>
                       <FunctionVerdict value={l.function_qualification} />
-                    </TableCell>
-                    <TableCell>
-                      <div className="flex items-center gap-1.5">
-                        <TemperatureBadge value={l.temperature} />
-                        <ThreadMarker lead={l} />
-                      </div>
                     </TableCell>
                     <TableCell className="truncate max-w-[140px]">
                       {l.icp_qualification ?? (
@@ -512,7 +414,7 @@ export function CampaignDetail({
                   {isOpen && hasDetail ? (
                     <TableRow className="bg-muted/20 hover:bg-muted/20">
                       <TableCell></TableCell>
-                      <TableCell colSpan={11} className="py-4">
+                      <TableCell colSpan={10} className="py-4">
                         <DetailGrid lead={l} />
                       </TableCell>
                     </TableRow>

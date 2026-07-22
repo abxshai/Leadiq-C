@@ -9,17 +9,17 @@ const schema = z.object({
     .min(1)
     .max(127)
     .describe(
-      "Table or view name. Bare (e.g. 'leads', 'campaigns') is searched in the public then crm schema; schema-qualify (e.g. 'crm.gtm_contact_data') to target one directly."
+      "Table or view name in the public schema (e.g. 'leads', 'campaigns', 'campaign_stats')."
     ),
 });
 
 export const getTableSchemaTool: Tool<typeof schema> = {
   name: "get_table_schema",
   description:
-    "Get the column list for a table or view — column name, data type, nullable, default — across the public and crm schemas. Useful before composing a SELECT against an unfamiliar table.",
+    "Get the column list for a table or view — column name, data type, nullable, default — in the public schema. Useful before composing a SELECT against an unfamiliar table.",
   schema,
   async handler({ table_name }) {
-    // Accept an optional schema qualifier ("crm.gtm_deal_data"). Split on the
+    // Accept an optional schema qualifier ("public.leads"). Split on the
     // first dot only; bare names fall back to scanning every queryable schema.
     const trimmed = table_name.trim();
     const dot = trimmed.indexOf(".");

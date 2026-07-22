@@ -5,7 +5,9 @@ worker needs — Vercel's serverless runtime would cut runs short.
 
 This guide assumes you already have:
 
-- A Supabase project with `schema.sql` + `rls.sql` already applied
+- A Supabase project with `supabase/init.sql` already applied (single
+  consolidated build — tables, RLS, grants, seed templates). See
+  `supabase/README.md`.
 - A GitHub account
 - A Railway account ([railway.app](https://railway.app) — sign in with
   GitHub is easiest)
@@ -44,7 +46,17 @@ git push -u origin main
 1. Railway dashboard → **New Project** → **Deploy from GitHub repo**.
 2. Pick the repo you just pushed. Railway auto-detects Next.js and
    generates a service.
-3. Wait for the first build. It **will** fail — because env vars aren't
+3. **Set the region to match Supabase — this matters more than any code fix.**
+   Settings → Deploy → **Region**. Every `force-dynamic` page runs several
+   server-side DB queries per load; if Railway and Supabase are in different
+   regions you pay cross-region RTT (~150 ms Amsterdam↔Singapore) *per query*,
+   which dominates page-load TTFB. Pick the Railway region **in Supabase's
+   region** (our Supabase is Singapore `aws-1` → Railway `asia-southeast1`).
+   For an India-based team Singapore also minimizes the user→server leg.
+   *(This was misconfigured in prod until 2026-07-15 — Railway EU-West vs
+   Supabase Singapore — costing ~400–700 ms/page. See the roadmap's
+   "Page-load latency pass" entry.)*
+4. Wait for the first build. It **will** fail — because env vars aren't
    set yet. That's fine, we fix that next.
 
 ---
@@ -66,14 +78,7 @@ In the Railway service → **Variables** tab, add these **six** keys:
 > their Groq key in-browser per session. There is no server-held Groq key
 > by design.
 
-**Optional (lead temperature deep links, M-CX1):**
-
-| Key | Value |
-|---|---|
-| `NEXT_PUBLIC_HUBSPOT_PORTAL_ID` | HubSpot account/portal ID — the number in your HubSpot URLs (`app.hubspot.com/contacts/`**`<this>`**`/...`). **Deccan's value: `47712062`** (set in Railway + local `.env.local`). Enables the "View in HubSpot" link on the touchpoint-history card; if unset that link is hidden (Smartlead links work regardless). |
-| `NEXT_PUBLIC_SMARTLEAD_BASE_URL` | only if self-hosting Smartlead; defaults to `https://app.smartlead.ai`. |
-
-After saving, Railway redeploys automatically. **Important — `NEXT_PUBLIC_*` vars are inlined at *build* time, not read at runtime:** the var must be present *before* the build runs. Adding it then waiting for the fresh build to finish works; a runtime-only restart won't pick it up. If a deploy ever serves a stale bundle, push a commit to force a clean rebuild. (The HubSpot links not showing in prod once traced to exactly this — the bundle had been built before the var existed.)
+After saving, Railway redeploys automatically. **Important — `NEXT_PUBLIC_*` vars are inlined at *build* time, not read at runtime:** the var must be present *before* the build runs. Adding it then waiting for the fresh build to finish works; a runtime-only restart won't pick it up. If a deploy ever serves a stale bundle, push a commit to force a clean rebuild.
 
 ---
 
@@ -138,9 +143,9 @@ Once signed in on production:
 - [ ] New campaign: upload a small test file (5-10 rows), run it.
 - [ ] Push to Campaign from `/scrape` → wizard lands on Configure step
       with leads pre-loaded.
-- [ ] `/analytics` populates.
+- [ ] `/leads` loads and filters work.
 - [ ] CSV export downloads.
-- [ ] Delete a campaign — row disappears and analytics decrement.
+- [ ] Delete a campaign — row disappears.
 
 If the worker seems to hang, open Railway's **Logs** tab — any errors
 thrown in `startCampaignRun` print there with `[worker] campaign <id>
@@ -148,42 +153,7 @@ failed: …`.
 
 ---
 
-## 8. Deploy Supabase edge functions
-
-The **LeadQuery** agent (see [`agent-section-plan.md`](./agent-section-plan.md)) uses Supabase's hosted gte-small model to embed leads for semantic search. Embeddings are computed by an Edge Function at `supabase/functions/embed-text`. Edge Functions live in Supabase, not Railway — Railway redeploys don't touch them.
-
-**One-time setup:**
-
-1. Install the Supabase CLI if you haven't already:
-   ```bash
-   brew install supabase/tap/supabase
-   ```
-2. From the repo root, link your Supabase project:
-   ```bash
-   supabase link --project-ref <your-project-ref>
-   ```
-3. Deploy the edge function:
-   ```bash
-   supabase functions deploy embed-text
-   ```
-
-**On every change to the edge function:** re-run `supabase functions deploy embed-text`. No Railway redeploy needed for edge function changes alone.
-
-**Env vars:** none required beyond what Supabase provides to the edge function runtime — gte-small is hosted by Supabase itself, no BYOK key.
-
-**Verify:** Supabase dashboard → **Edge Functions** should list `embed-text`. From the deployed Lead-IQ app, run a small campaign and check that `leads.embedded_at` populates after qualification.
-
-**One-shot backfill of existing leads** (run once after first deploy):
-
-```bash
-SUPABASE_URL=... SUPABASE_SERVICE_ROLE_KEY=... npm run backfill-embeddings
-```
-
-Walks all leads where `embedding IS NULL`, embeds via the edge function, writes back. ~5-10 min for ~3000 leads. Non-destructive — only writes to NULL rows; safe to run on a live system.
-
----
-
-## 9. (Optional) Custom domain
+## 8. (Optional) Custom domain
 
 Railway → your service → **Settings → Networking → Custom Domain**. Add
 `qualifier.yourdomain.com`, set the CNAME at your DNS provider to the
@@ -212,7 +182,7 @@ request that touches a new column 500s.
 | `/scrape` agents dropdown stays empty | PB API key not connected, or invalid | Click the **Connect Phantombuster** pill, paste the key — it validates against `/orgs/fetch-resources` |
 | Run starts but leads never update | Worker crashed silently | Check Railway logs for `[worker]` lines |
 | `baseURL.endsWith is not a function` | `GROQ_BASE_URL` import got crossed with a `"use client"` module | Should be fixed on `main`; `import` from `@/lib/groq-config`, not `@/lib/groq-store` |
-| "relation does not exist" | Schema SQL not applied to the Supabase project this deploy points at | Re-run `schema.sql` + `rls.sql` in the SQL editor |
+| "relation does not exist" | Schema not applied to the Supabase project this deploy points at | Re-run `supabase/init.sql` in the SQL editor |
 
 ---
 

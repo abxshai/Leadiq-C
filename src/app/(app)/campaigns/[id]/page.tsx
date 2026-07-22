@@ -1,5 +1,6 @@
 import { notFound } from "next/navigation";
 import { CampaignDetail } from "@/components/campaign-detail";
+import { LEAD_COLS } from "@/components/leads/lead-display";
 import { createServerSupabase } from "@/lib/supabase/server";
 
 export const dynamic = "force-dynamic";
@@ -30,9 +31,7 @@ export default async function CampaignDetailPage({
         .maybeSingle(),
       supabase
         .from("leads")
-        .select(
-          "id, full_name, title, company_name, status, function_qualification, function_reasoning, icp_qualification, seniority_scoring, domain_classification, subdomain, subdomain_justification, domain_reasoning, priority_level, product_area, lead_summary, error, default_profile_url, temperature, touchpoint_match, touchpoint_summary"
-        )
+        .select(LEAD_COLS)
         .eq("campaign_id", id)
         .order("created_at", { ascending: true })
         .range(0, 4999),

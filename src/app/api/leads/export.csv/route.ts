@@ -11,8 +11,8 @@ import {
 //   <filter params>     → export every lead matching the current filter set
 // The filter params are the same ones the page reads (see leads-filters.ts),
 // so "Export all" downloads precisely what the filtered view shows. Column
-// order matches the per-campaign export, plus a leading Campaign column and a
-// Temperature column (this view is cross-campaign and temperature-aware).
+// order matches the per-campaign export, plus a leading Campaign column (this
+// view is cross-campaign).
 
 const COLUMNS = [
   "Campaign",
@@ -36,7 +36,6 @@ const COLUMNS = [
   "Domain Reasoning",
   "Priority Level",
   "Product Area / Team",
-  "Temperature",
   "Lead Summary",
 ];
 
@@ -62,7 +61,6 @@ type LeadExport = {
   priority_level: string | null;
   product_area: string | null;
   lead_summary: string | null;
-  temperature: string | null;
   campaign_name: string | null;
 };
 
@@ -70,7 +68,7 @@ type LeadExport = {
 // the deduped /leads browser — one row per person (by normalized LinkedIn URL).
 // campaign_name is a flat column on the view (no PostgREST embed needed).
 const LEAD_COLS =
-  "default_profile_url, full_name, first_name, last_name, company_name, title, summary, title_description, location, agent_full_name, function_qualification, function_reasoning, icp_qualification, seniority_scoring, domain_classification, subdomain, subdomain_justification, domain_reasoning, priority_level, product_area, lead_summary, temperature, campaign_name";
+  "default_profile_url, full_name, first_name, last_name, company_name, title, summary, title_description, location, agent_full_name, function_qualification, function_reasoning, icp_qualification, seniority_scoring, domain_classification, subdomain, subdomain_justification, domain_reasoning, priority_level, product_area, lead_summary, campaign_name";
 
 export async function GET(request: Request) {
   const sp = new URL(request.url).searchParams;
@@ -124,7 +122,6 @@ export async function GET(request: Request) {
     "Domain Reasoning": l.domain_reasoning,
     "Priority Level": l.priority_level,
     "Product Area / Team": l.product_area,
-    "Temperature": l.temperature,
     "Lead Summary": l.lead_summary,
   }));
 

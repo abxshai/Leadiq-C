@@ -4,7 +4,7 @@ import { ThemeProvider } from "@/components/theme-provider";
 import "./globals.css";
 
 // JetBrains Mono — body text + mono UI accents (buttons, code chips, KPI
-// numbers, login-hero ASCII). Feeds `--font-sans` / `--font-mono`.
+// numbers). Feeds `--font-sans` / `--font-mono`.
 const jetbrainsMono = JetBrains_Mono({
   variable: "--font-mono",
   subsets: ["latin"],

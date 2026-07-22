@@ -24,7 +24,7 @@ const components: Components = {
     </a>
   ),
 
-  // Real table, wrapped so wide CRM results scroll horizontally inside the
+  // Real table, wrapped so wide query results scroll horizontally inside the
   // bubble instead of blowing out the layout. Native <table> selection means
   // you can click-drag across cells and copy straight into a sheet.
   table: ({ children }) => (
