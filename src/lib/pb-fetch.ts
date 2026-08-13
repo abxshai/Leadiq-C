@@ -188,61 +188,45 @@ async function resolveCsvUrl(
     apiKey
   );
   if (agent.orgS3Folder && agent.s3Folder) {
-    // Use the public CDN host, not the raw S3 bucket (which is often private
-    // and 403s). downloadCsv() below will also try the S3 host as a fallback.
-    return `https://cache1.phantombuster.com/${agent.orgS3Folder}/${agent.s3Folder}/result.csv`;
+    return `https://phantombuster.s3.amazonaws.com/${agent.orgS3Folder}/${agent.s3Folder}/result.csv`;
   }
   return null;
 }
 
-// PB serves result files publicly from cache1.phantombuster.com; the raw S3
-// bucket host is frequently private and returns 403. Download the resolved URL,
-// and if it's a bare (non-presigned) PB storage URL that fails, retry with the
-// host swapped between the CDN and S3. A browser UA avoids the occasional
-// bare-fetch 403. On failure, surface the host + status so the cause is visible.
-const PB_STORAGE_HOSTS = [
-  "cache1.phantombuster.com",
-  "phantombuster.s3.amazonaws.com",
-];
-
+// Download the resolved result URL. On failure, surface the exact URL (query
+// stripped, so a presigned signature never leaks) plus the HTTP status OR the
+// underlying network error — so a failure is diagnosable instead of a bare
+// "fetch failed" / "HTTP 403". A browser UA avoids the occasional bare-fetch 403.
 async function downloadCsv(url: string): Promise<string> {
-  const candidates = [url];
+  let safe = url;
   try {
     const u = new URL(url);
-    // Only swap hosts for bare public URLs — a presigned URL's signature is
-    // bound to its host, so rewriting it would break it.
-    if (!u.search && PB_STORAGE_HOSTS.includes(u.hostname)) {
-      for (const host of PB_STORAGE_HOSTS) {
-        if (host !== u.hostname) {
-          const alt = new URL(url);
-          alt.hostname = host;
-          candidates.push(alt.toString());
-        }
-      }
-    }
+    safe = `${u.origin}${u.pathname}`;
   } catch {
-    /* not a parseable URL — just try it as-is */
+    /* keep url as-is */
   }
 
-  let lastStatus = 0;
-  let lastHost = "";
-  for (const candidate of candidates) {
-    let host = "?";
-    try {
-      host = new URL(candidate).hostname;
-    } catch {
-      /* keep "?" */
-    }
-    const res = await fetch(candidate, {
+  let res: Response;
+  try {
+    res = await fetch(url, {
       headers: { "user-agent": "Mozilla/5.0 (compatible; Lead-IQ/1.0)" },
     });
-    if (res.ok) return res.text();
-    lastStatus = res.status;
-    lastHost = host;
+  } catch (err) {
+    const reason =
+      err instanceof Error
+        ? err.cause instanceof Error
+          ? err.cause.message
+          : err.message
+        : String(err);
+    throw new Error(`CSV download failed (network) for ${safe}: ${reason}`);
   }
-  throw new Error(
-    `CSV download failed: HTTP ${lastStatus} from ${lastHost}. The Phantombuster result file may be private or expired — re-run the phantom (or check its result-storage settings) and try again.`
-  );
+
+  if (!res.ok) {
+    throw new Error(
+      `CSV download failed: HTTP ${res.status} for ${safe}. The Phantombuster result file may be private, missing, or renamed — re-run the phantom or check its result-storage settings.`
+    );
+  }
+  return res.text();
 }
 
 /**
