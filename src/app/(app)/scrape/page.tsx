@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/card";
 import { Badge } from "@/components/ui/badge";
 import { usePbApiKeyStore } from "@/lib/pb-api-key-store";
+import { ApifyFetchCard } from "@/components/scrape/apify-fetch-card";
 
 type Agent = { id: string; name: string; script: string };
 
@@ -294,6 +295,7 @@ export default function ScrapePage() {
           </CardContent>
         </Card>
       ) : null}
+      <ApifyFetchCard />
     </>
   );
 }
