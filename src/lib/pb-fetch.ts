@@ -188,9 +188,61 @@ async function resolveCsvUrl(
     apiKey
   );
   if (agent.orgS3Folder && agent.s3Folder) {
-    return `https://phantombuster.s3.amazonaws.com/${agent.orgS3Folder}/${agent.s3Folder}/result.csv`;
+    // Use the public CDN host, not the raw S3 bucket (which is often private
+    // and 403s). downloadCsv() below will also try the S3 host as a fallback.
+    return `https://cache1.phantombuster.com/${agent.orgS3Folder}/${agent.s3Folder}/result.csv`;
   }
   return null;
+}
+
+// PB serves result files publicly from cache1.phantombuster.com; the raw S3
+// bucket host is frequently private and returns 403. Download the resolved URL,
+// and if it's a bare (non-presigned) PB storage URL that fails, retry with the
+// host swapped between the CDN and S3. A browser UA avoids the occasional
+// bare-fetch 403. On failure, surface the host + status so the cause is visible.
+const PB_STORAGE_HOSTS = [
+  "cache1.phantombuster.com",
+  "phantombuster.s3.amazonaws.com",
+];
+
+async function downloadCsv(url: string): Promise<string> {
+  const candidates = [url];
+  try {
+    const u = new URL(url);
+    // Only swap hosts for bare public URLs — a presigned URL's signature is
+    // bound to its host, so rewriting it would break it.
+    if (!u.search && PB_STORAGE_HOSTS.includes(u.hostname)) {
+      for (const host of PB_STORAGE_HOSTS) {
+        if (host !== u.hostname) {
+          const alt = new URL(url);
+          alt.hostname = host;
+          candidates.push(alt.toString());
+        }
+      }
+    }
+  } catch {
+    /* not a parseable URL — just try it as-is */
+  }
+
+  let lastStatus = 0;
+  let lastHost = "";
+  for (const candidate of candidates) {
+    let host = "?";
+    try {
+      host = new URL(candidate).hostname;
+    } catch {
+      /* keep "?" */
+    }
+    const res = await fetch(candidate, {
+      headers: { "user-agent": "Mozilla/5.0 (compatible; Lead-IQ/1.0)" },
+    });
+    if (res.ok) return res.text();
+    lastStatus = res.status;
+    lastHost = host;
+  }
+  throw new Error(
+    `CSV download failed: HTTP ${lastStatus} from ${lastHost}. The Phantombuster result file may be private or expired — re-run the phantom (or check its result-storage settings) and try again.`
+  );
 }
 
 /**
@@ -245,11 +297,7 @@ export async function fetchPbOutput(opts: {
     throw new Error(`couldn't resolve result CSV URL for container ${container.id}`);
   }
 
-  const csvRes = await fetch(csvUrl);
-  if (!csvRes.ok) {
-    throw new Error(`CSV download failed: HTTP ${csvRes.status}`);
-  }
-  const rawCsv = await csvRes.text();
+  const rawCsv = await downloadCsv(csvUrl);
 
   const launchedAtMs = container.launchedAt ?? 0;
   const finishedAtMs =
