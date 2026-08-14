@@ -176,9 +176,11 @@ export function ApifySearchCard() {
         </CardTitle>
         <CardDescription>
           Cookie-free LinkedIn people search via harvestapi — enter filters,
-          scrape up to 1,000 profiles without the Phantombuster stall, then Push
-          to Campaign. Full mode (with profile detail) ≈ $8 / 1k; Short ≈ $4 / 1k.
-          LinkedIn caps a single search near ~1,000 — split by filters for more.
+          scrape without the Phantombuster stall, then Push to Campaign. Full
+          mode (with profile detail) ≈ $8 / 1k; Short ≈ $4 / 1k.{" "}
+          <strong>Needs a paid Apify plan</strong> to pull more than 25 per run
+          (free Apify accounts are hard-capped at 25 by the actor). Above 25 it
+          auto-segments the query to get past LinkedIn&apos;s one-page limit.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

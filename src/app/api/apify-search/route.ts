@@ -56,9 +56,18 @@ export async function POST(request: Request) {
   const input: Record<string, unknown> = {
     profileScraperMode: mode,
     maxItems,
-    // ~25 results per page — without takePages the actor scrapes only page 1
-    // (~25). Request enough pages to reach maxItems.
-    takePages: Math.max(1, Math.ceil(maxItems / 25)),
+    // The no-cookie search exposes only ~25 profiles per query (one page).
+    // harvestapi's auto query segmentation runs sub-searches across LinkedIn
+    // filters (country/state/seniority) to pull far more, deduped, capped by
+    // maxItems. NOTE: both >25 results AND segmentation require a PAID Apify
+    // tier — free accounts are hard-capped at 25 items/run (see the actor's
+    // run log). On free tier this flag is ignored and you still get ~25.
+    ...(maxItems > 25
+      ? {
+          autoQuerySegmentation: true,
+          autoQuerySegmentationLevels: ["default"],
+        }
+      : {}),
     ...(searchQuery ? { searchQuery } : {}),
     ...(currentJobTitles.length ? { currentJobTitles } : {}),
     ...(locations.length ? { locations } : {}),
