@@ -230,8 +230,10 @@ export function ApifySearchCard() {
               type="number"
               min={1}
               max={1000}
-              value={maxItems}
-              onChange={(e) => setMaxItems(Number(e.target.value) || 1000)}
+              value={maxItems || ""}
+              onChange={(e) =>
+                setMaxItems(e.target.value === "" ? 0 : Number(e.target.value))
+              }
               disabled={busy}
             />
           </div>

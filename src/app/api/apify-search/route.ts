@@ -56,6 +56,9 @@ export async function POST(request: Request) {
   const input: Record<string, unknown> = {
     profileScraperMode: mode,
     maxItems,
+    // ~25 results per page — without takePages the actor scrapes only page 1
+    // (~25). Request enough pages to reach maxItems.
+    takePages: Math.max(1, Math.ceil(maxItems / 25)),
     ...(searchQuery ? { searchQuery } : {}),
     ...(currentJobTitles.length ? { currentJobTitles } : {}),
     ...(locations.length ? { locations } : {}),
