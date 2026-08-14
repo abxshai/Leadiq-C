@@ -48,6 +48,9 @@ type FetchResult = {
 
 const PENDING_SCRAPE_KEY = "qualifier.pending-scrape-push";
 
+// Clone deploy: keys are server-held (env); don't force key entry.
+const SERVER_KEYS = process.env.NEXT_PUBLIC_SERVER_KEYS === "1";
+
 export default function ScrapePage() {
   const router = useRouter();
   const [mounted, setMounted] = useState(false);
@@ -66,7 +69,7 @@ export default function ScrapePage() {
 
   // Pull the agent list every time we have a key (and on reconnect).
   useEffect(() => {
-    if (!apiKey) {
+    if (!apiKey && !SERVER_KEYS) {
       setAgents(null);
       setAgentsErr(null);
       return;
@@ -74,7 +77,7 @@ export default function ScrapePage() {
     let cancelled = false;
     setAgentsBusy(true);
     setAgentsErr(null);
-    fetch("/api/pb-agents", { headers: { "x-pb-key": apiKey } })
+    fetch("/api/pb-agents", { headers: apiKey ? { "x-pb-key": apiKey } : {} })
       .then(async (r) => {
         const j = (await r.json()) as { agents?: Agent[]; error?: string };
         if (cancelled) return;
@@ -93,11 +96,11 @@ export default function ScrapePage() {
     };
   }, [apiKey]);
 
-  const connected = mounted && Boolean(apiKey);
+  const connected = mounted && (Boolean(apiKey) || SERVER_KEYS);
   const canFetch = connected && (agentId.trim() || containerId.trim()) && !busy;
 
   async function onFetch() {
-    if (!apiKey) return;
+    if (!apiKey && !SERVER_KEYS) return;
     setBusy(true);
     setErr(null);
     setResult(null);
@@ -106,7 +109,7 @@ export default function ScrapePage() {
         method: "POST",
         headers: {
           "content-type": "application/json",
-          "x-pb-key": apiKey,
+          ...(apiKey ? { "x-pb-key": apiKey } : {}),
         },
         body: JSON.stringify({
           agentId: agentId.trim() || undefined,

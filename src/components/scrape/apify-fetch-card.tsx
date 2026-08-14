@@ -26,6 +26,9 @@ import { useApifyStore, DEFAULT_APIFY_ACTOR_ID } from "@/lib/apify-store";
 // Same handoff key the RunWizard consumes (also in scrape/page.tsx).
 const PENDING_SCRAPE_KEY = "qualifier.pending-scrape-push";
 
+// Clone deploy: keys are server-held (env); don't force key entry.
+const SERVER_KEYS = process.env.NEXT_PUBLIC_SERVER_KEYS === "1";
+
 type Result = {
   source: string;
   datasetItemCount: number;
@@ -44,18 +47,21 @@ export function ApifyFetchCard() {
   const [err, setErr] = useState<string | null>(null);
   const [result, setResult] = useState<Result | null>(null);
 
-  const connected = Boolean(apiKey);
+  const connected = Boolean(apiKey) || SERVER_KEYS;
   const canFetch = connected && !busy && (actorId.trim() || runId.trim() || datasetId.trim());
 
   async function onFetch() {
-    if (!apiKey) return;
+    if (!apiKey && !SERVER_KEYS) return;
     setBusy(true);
     setErr(null);
     setResult(null);
     try {
       const res = await fetch("/api/apify-fetch", {
         method: "POST",
-        headers: { "content-type": "application/json", "x-apify-token": apiKey },
+        headers: {
+          "content-type": "application/json",
+          ...(apiKey ? { "x-apify-token": apiKey } : {}),
+        },
         body: JSON.stringify({
           actorId: actorId.trim() || undefined,
           runId: runId.trim() || undefined,
