@@ -3,6 +3,7 @@ import { AppSidebar } from "@/components/app-sidebar";
 import { GroqConnectPill } from "@/components/groq-connect-pill";
 import { PbConnectPill } from "@/components/pb-connect-pill";
 import { ApifyConnectPill } from "@/components/apify-connect-pill";
+import { ExaConnectPill } from "@/components/exa-connect-pill";
 import { ThemeToggle } from "@/components/theme-toggle";
 import { createServerSupabase } from "@/lib/supabase/server";
 
@@ -35,6 +36,7 @@ export default async function AppLayout({
             <PbConnectPill />
             <ApifyConnectPill />
             <GroqConnectPill />
+            <ExaConnectPill />
             <ThemeToggle />
           </div>
         </header>

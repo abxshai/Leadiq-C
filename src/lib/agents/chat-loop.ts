@@ -1,7 +1,7 @@
 import "server-only";
 import { z } from "zod";
 import type OpenAI from "openai";
-import { ALL_TOOLS, getTool } from "./tools";
+import { ALL_TOOLS, getTool, type ToolContext } from "./tools";
 import type { AgentConfig } from "./registry";
 import type { ChatStreamEvent } from "./sse";
 
@@ -45,12 +45,18 @@ export async function runChatLoop({
   history,
   client,
   onEvent,
+  toolContext,
+  systemPrompt,
 }: {
   agent: AgentConfig;
   /** Full history including the new user message at the tail. */
   history: ChatMessage[];
   client: OpenAI;
   onEvent: (event: ChatStreamEvent) => void;
+  /** Per-request resources (Exa key, auth user id) passed to tool handlers. */
+  toolContext?: ToolContext;
+  /** Overrides the agent's base system prompt (base + user-supplied ICP context). */
+  systemPrompt?: string;
 }): Promise<ChatLoopResult> {
   const tools = agent.tools
     .map((name) => ALL_TOOLS[name])
@@ -65,7 +71,7 @@ export async function runChatLoop({
     }));
 
   const messages: ChatMessage[] = [
-    { role: "system", content: agent.system_prompt },
+    { role: "system", content: systemPrompt ?? agent.system_prompt },
     ...history,
   ];
 
@@ -159,7 +165,7 @@ export async function runChatLoop({
       } else {
         try {
           const validated = tool.schema.parse(parsedArgs);
-          result = await tool.handler(validated, {});
+          result = await tool.handler(validated, toolContext ?? {});
         } catch (e) {
           result = {
             ok: false,

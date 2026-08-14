@@ -6,9 +6,11 @@ import type { z } from "zod";
 // request-scoped resources.
 
 export type ToolContext = {
-  // Reserved for future per-request resources (auth user id, etc.).
-  // Tools currently get their PG pool via the module-level singleton.
+  // Per-request resources. DB tools get their PG pool via the module-level
+  // singleton; these are threaded in from the chat route per request.
   userId?: string;
+  /** BYOK Exa API key for the exa_search tool. */
+  exaApiKey?: string;
 };
 
 export type ToolResult =

@@ -17,7 +17,13 @@ export const AGENTS: AgentConfig[] = [
     description:
       "Query qualified leads across all campaigns with natural language. Structured SQL filtering (semantic similarity comes later in M-AG2).",
     system_prompt: LEADQUERY_SYSTEM_PROMPT,
-    tools: ["execute_sql", "list_tables", "get_table_schema"],
+    tools: [
+      "execute_sql",
+      "list_tables",
+      "get_table_schema",
+      "exa_search",
+      "create_campaign_from_leads",
+    ],
     model: "openai/gpt-oss-120b",
     byok_required: ["groq"],
   },

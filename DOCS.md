@@ -1,6 +1,6 @@
 # Lead-IQ — Product & Architecture Documentation
 
-*Last updated: 2026-06-22*
+*Last updated: 2026-08-14*
 
 Lead-IQ is an internal self-serve tool at Deccan AI that qualifies
 LinkedIn leads against a target Ideal Customer Profile (ICP) using a
@@ -400,6 +400,17 @@ Groq openai/gpt-oss-120b (JSON mode)
 ## 8. Current state
 
 **Shipped:**
+- **LeadQuery signal sourcing + ICP segmentation (2026-08-14)** — the chat agent
+  can now source **signal-based leads from the live web via Exa** (`exa_search`,
+  BYOK Exa key), qualify them post-retrieval against a described ICP, ICP-segment
+  the results, and — on explicit command — save them as a pending campaign
+  (`create_campaign_from_leads`, its only write). A per-request **user-editable
+  system prompt** (ICP/signal context) in the chat UI drives the sourcing +
+  segmentation.
+- **Apify fetch — cookie-free scrape source (2026-08-14)** — BYOK Apify token;
+  pull an existing run's dataset (default `harvestapi/linkedin-profile-scraper`),
+  project to the 9 input columns + dedupe, and Push to Campaign from `/scrape`.
+  A no-account-cookie alternative to Phantombuster.
 - **Opportunities surface (`/opportunities`, M-CX3)** — one card feed of the
   live, positive signals a rep should act on, newest-engagement-first, from
   **both** halves of the CRM: **Smartlead genuine-interest conversations**

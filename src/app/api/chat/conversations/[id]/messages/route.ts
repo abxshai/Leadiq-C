@@ -102,6 +102,9 @@ export async function POST(
     );
   }
 
+  // BYOK Exa key (optional — only the exa_search sourcing tool needs it).
+  const exaApiKey = request.headers.get("x-exa-key")?.trim() || undefined;
+
   // Auth
   const supabase = await createServerSupabase();
   const {
@@ -128,6 +131,13 @@ export async function POST(
     );
   }
 
+  // Optional user-supplied system prompt (ICP / signal context), prepended to
+  // the agent's base prompt for this request.
+  const systemPromptExtra =
+    typeof body?.systemPrompt === "string"
+      ? body.systemPrompt.trim().slice(0, 8000)
+      : "";
+
   // Load conversation + look up the agent it's bound to
   const { data: conv, error: cErr } = await supabase
     .from("chat_conversations")
@@ -151,6 +161,10 @@ export async function POST(
       { status: 500 }
     );
   }
+
+  const effectiveSystemPrompt = systemPromptExtra
+    ? `${agent.system_prompt}\n\n# User-provided ICP / signal context\n\nThe user supplied the context below. Treat it as authoritative for ICP definitions, target segments, and signal criteria when sourcing, qualifying, and segmenting:\n\n${systemPromptExtra}`
+    : agent.system_prompt;
 
   // Load prior persisted history
   const { data: histRows, error: hErr } = await supabase
@@ -206,6 +220,8 @@ export async function POST(
           history: historyWithUser,
           client: groq,
           onEvent: enqueue,
+          toolContext: { userId: user.id, exaApiKey },
+          systemPrompt: effectiveSystemPrompt,
         });
 
         // Persist the new assistant + tool messages in one batch.

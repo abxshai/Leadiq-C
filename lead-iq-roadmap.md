@@ -6,7 +6,7 @@ short.
 
 Companion docs: [`DOCS.md`](./DOCS.md) (product + architecture), [`UI.md`](./UI.md) (design system: fonts, color tokens, component conventions, refresh candidates).
 
-*Last updated: 2026-07-15*
+*Last updated: 2026-08-14*
 
 ---
 
@@ -108,6 +108,11 @@ On the radar, not committed. Promote when a real trigger appears.
 ---
 
 ## Shipped
+
+**2026-08-14**
+- [x] **LeadQuery agent — signal sourcing (Exa) + ICP segmentation + editable system prompt.** The chat agent gains three capabilities beyond read-only SQL: (1) `exa_search` — Exa semantic web search (`category` = company / people / news) to **source signal-based leads** (BYOK Exa key via `X-Exa-Key`, threaded into the tool context); (2) `create_campaign_from_leads` — its **only** write — to save agent-sourced/qualified leads as a *pending* campaign (snapshots the default template) on explicit command; (3) a per-request **user-editable system prompt** (an ICP/signal-context textarea in the chat UI, persisted to localStorage, prepended to the agent prompt). Workflow: source → qualify post-retrieval against the described ICP → ICP-segment → present → save on command. New `exa-store`, `agent-prompt-store`, `connect-exa-dialog` + `exa-connect-pill`, `agents/tools/exa-search`, `agents/tools/create-campaign`; `ToolContext` += `exaApiKey`; `runChatLoop` takes `toolContext` + `systemPrompt`; the chat route reads `X-Exa-Key` + `systemPrompt`. (Evaluated LangSmith Fleet for orchestration — deferred; overkill for a single agent vs. the native tool-loop.)
+- [x] **Apify fetch — cookie-free Phantombuster alternative.** BYOK Apify token; fetch an existing run's dataset (default actor \`harvestapi/linkedin-profile-scraper\`; the actor's last successful run, or a run/dataset ID), project nested profile records to the 9 input columns + dedupe by URL (no email, no cap), \`/scrape\` "Fetch an Apify run" card → Push to Campaign. New \`apify-store\`, \`apify-fetch\`, \`/api/apify-fetch\`, \`/api/apify-whoami\`, connect dialog + pill, card.
+- [x] **PB result-download hardening.** The result-CSV download reports the exact URL + HTTP status / network reason on failure (instead of a bare "HTTP 403" / "fetch failed"), so a bad phantom list is diagnosable.
 
 **2026-06-22**
 - [x] **Removed `/analytics`.** The dashboard was bloated and slow (fetch-every-lead-then-filter-in-memory, `force-dynamic`, Recharts) and `/leads` covers the operational need better. Deleted the route, `analytics-dashboard.tsx`, and the now-orphaned `src/components/ui/chart.tsx`; dropped the sidebar entry (`BarChart3`) and the `revalidatePath("/analytics")` in `deleteCampaign` (→ `/leads`). The `--chart-*` tokens + `recharts` dep are left in place (harmless, unused) for a future charts surface. Cross-source / exec reporting, if needed later, is the **BI offload** backlog item (SQL views → Metabase/Looker), not an in-app rebuild.
