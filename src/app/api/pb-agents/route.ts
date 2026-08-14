@@ -4,7 +4,7 @@ export const dynamic = "force-dynamic";
 export const runtime = "nodejs";
 
 export async function GET(request: Request) {
-  const pbApiKey = request.headers.get("x-pb-key")?.trim();
+  const pbApiKey = request.headers.get("x-pb-key")?.trim() || process.env.PHANTOMBUSTER_API_KEY;
   if (!pbApiKey) {
     return Response.json(
       { error: "missing x-pb-key header — connect Phantombuster first" },

@@ -91,6 +91,8 @@ export function CampaignDetail({
   const [runError, setRunError] = useState<string | null>(null);
   const [expanded, setExpanded] = useState<Set<string>>(new Set());
   const apiKey = useGroqStore((s) => s.apiKey);
+  // Clone deploy: keys are server-held (env); don't force key entry.
+  const SERVER_KEYS = process.env.NEXT_PUBLIC_SERVER_KEYS === "1";
 
   function toggleExpand(id: string) {
     setExpanded((prev) => {
@@ -157,7 +159,7 @@ export function CampaignDetail({
   }, [campaign.status, refresh]);
 
   async function onStart() {
-    if (!apiKey) {
+    if (!apiKey && !SERVER_KEYS) {
       setDialogOpen(true);
       return;
     }
@@ -166,7 +168,7 @@ export function CampaignDetail({
     try {
       const res = await fetch(`/api/campaigns/${campaign.id}/run`, {
         method: "POST",
-        headers: { "x-groq-key": apiKey },
+        headers: apiKey ? { "x-groq-key": apiKey } : {},
       });
       const body = await res.json().catch(() => ({}));
       if (!res.ok) {
@@ -270,7 +272,7 @@ export function CampaignDetail({
         </div>
       ) : null}
 
-      {!apiKey && canStart ? (
+      {!apiKey && !SERVER_KEYS && canStart ? (
         <div className="flex items-start gap-2 rounded-md border border-primary/30 bg-primary/5 px-3 py-2 text-sm">
           <CircleAlert className="mt-0.5 h-4 w-4 shrink-0 text-primary" />
           <span>

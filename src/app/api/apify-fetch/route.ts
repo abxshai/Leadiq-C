@@ -9,7 +9,7 @@ export const dynamic = "force-dynamic";
 // Body: { actorId?, runId?, datasetId? } — one is required. Reads an Apify run's
 // dataset and returns a qualification-ready CSV (9 input columns).
 export async function POST(request: Request) {
-  const token = request.headers.get("x-apify-token")?.trim();
+  const token = request.headers.get("x-apify-token")?.trim() || process.env.APIFY_API_TOKEN;
   if (!token) {
     return NextResponse.json(
       { error: "Missing X-Apify-Token header." },

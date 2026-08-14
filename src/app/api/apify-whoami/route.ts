@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 // Proxied server-side to avoid browser CORS and keep the token off any
 // third-party origin. Reads X-Apify-Token; token scrubbed from any error.
 export async function GET(request: Request) {
-  const token = request.headers.get("x-apify-token")?.trim();
+  const token = request.headers.get("x-apify-token")?.trim() || process.env.APIFY_API_TOKEN;
   if (!token) {
     return NextResponse.json({ error: "Missing token" }, { status: 400 });
   }

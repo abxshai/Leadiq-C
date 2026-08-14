@@ -8,7 +8,8 @@ export async function POST(
 ) {
   const { id } = await ctx.params;
 
-  const apiKey = request.headers.get("x-groq-key")?.trim();
+  // BYOK header wins; falls back to a server-held key (env).
+  const apiKey = request.headers.get("x-groq-key")?.trim() || process.env.GROQ_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
       { error: "Missing X-Groq-Key header." },

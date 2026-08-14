@@ -88,7 +88,9 @@ export async function POST(
   const { id: conversationId } = await ctx.params;
 
   // BYOK Groq key
-  const apiKey = request.headers.get("x-groq-key")?.trim();
+  // BYOK header wins; falls back to a server-held key (env) so the clone
+  // deploy needs no per-session key entry.
+  const apiKey = request.headers.get("x-groq-key")?.trim() || process.env.GROQ_API_KEY;
   if (!apiKey) {
     return NextResponse.json(
       { error: "Missing X-Groq-Key header." },
@@ -103,7 +105,8 @@ export async function POST(
   }
 
   // BYOK Exa key (optional — only the exa_search sourcing tool needs it).
-  const exaApiKey = request.headers.get("x-exa-key")?.trim() || undefined;
+  const exaApiKey =
+    request.headers.get("x-exa-key")?.trim() || process.env.EXA_API_KEY || undefined;
 
   // Auth
   const supabase = await createServerSupabase();

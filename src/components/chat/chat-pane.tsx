@@ -16,6 +16,10 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import { Textarea } from "@/components/ui/textarea";
 import { ChatMessage } from "./chat-message";
 
+// On the clone deploy, keys are server-held (env), so the client shouldn't
+// force key entry. Set NEXT_PUBLIC_SERVER_KEYS=1 to flip gating off.
+const SERVER_KEYS = process.env.NEXT_PUBLIC_SERVER_KEYS === "1";
+
 export type DbMessage = {
   id: string;
   role: "user" | "assistant" | "tool" | "system";
@@ -72,7 +76,7 @@ export function ChatPane({
 
   async function handleSend() {
     if (!input.trim() || streaming) return;
-    if (!apiKey) {
+    if (!apiKey && !SERVER_KEYS) {
       setError("Connect your Groq key from the pill in the top-right.");
       return;
     }
@@ -104,7 +108,7 @@ export function ChatPane({
           method: "POST",
           headers: {
             "Content-Type": "application/json",
-            "X-Groq-Key": apiKey,
+            ...(apiKey ? { "X-Groq-Key": apiKey } : {}),
             ...(exaKey ? { "X-Exa-Key": exaKey } : {}),
           },
           body: JSON.stringify({ content: userText, systemPrompt }),
@@ -294,18 +298,18 @@ export function ChatPane({
           onChange={(e) => setInput(e.target.value)}
           onKeyDown={handleKeyDown}
           placeholder={
-            apiKey
+            apiKey || SERVER_KEYS
               ? "Ask LeadQuery anything about your leads…"
               : "Connect your Groq key from the top-right to start."
           }
           rows={2}
           className="flex-1 resize-none"
-          disabled={streaming || !apiKey}
+          disabled={streaming || (!apiKey && !SERVER_KEYS)}
         />
         <Button
           type="submit"
           size="icon"
-          disabled={streaming || !input.trim() || !apiKey}
+          disabled={streaming || !input.trim() || (!apiKey && !SERVER_KEYS)}
         >
           <Send className="h-4 w-4" />
         </Button>
