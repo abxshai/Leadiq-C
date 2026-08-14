@@ -68,6 +68,46 @@ export async function apifyWhoami(token: string): Promise<string | null> {
   return me.username ?? null;
 }
 
+// Default search actor: harvestapi LinkedIn Profile Search (No Cookies) — takes
+// structured filters + a query and paginates, so it pulls ~1000 without the
+// session-stalling that PB's search export hits.
+export const DEFAULT_SEARCH_ACTOR = "harvestapi~linkedin-profile-search";
+
+/** Start an actor run (async). Returns the run id + initial status. */
+export async function startApifyRun(
+  token: string,
+  actorId: string,
+  input: Record<string, unknown>
+): Promise<{ runId: string; status: string }> {
+  const run = await apify<{ id?: string; status?: string }>(
+    `/acts/${encodeURIComponent(actorId)}/runs`,
+    token,
+    {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify(input),
+    }
+  );
+  if (!run.id) throw new Error("Apify did not return a run id.");
+  return { runId: run.id, status: run.status ?? "RUNNING" };
+}
+
+/** Poll an actor run's status. */
+export async function getApifyRunStatus(
+  token: string,
+  runId: string
+): Promise<{ status: string; itemCount: number | null }> {
+  const run = await apify<{
+    status?: string;
+    stats?: { itemCount?: number };
+    defaultDatasetId?: string;
+  }>(`/actor-runs/${runId}`, token);
+  return {
+    status: run.status ?? "UNKNOWN",
+    itemCount: run.stats?.itemCount ?? null,
+  };
+}
+
 // ---- output mapping -------------------------------------------------------
 
 function str(v: unknown): string {
